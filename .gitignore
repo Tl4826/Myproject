@@ -1,0 +1,9 @@
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+node_modules/
+.env
+data/*
+!data/.gitkeep
+ml/models/*.pt
+ml/models/*.onnx
