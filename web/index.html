@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriVN - Nền Tảng Dinh Dưỡng AI Việt Nam</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.development.js" crossorigin></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        button, label { transition: all .15s; }
+        button:active:not(:disabled) { transform: scale(.97); }
+        input:focus, select:focus { outline: none; border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.25); }
+        .scene { perspective: 900px; }
+        .landing-scene { --k: 1.3; }
+        @media (min-width: 768px) { .landing-scene { --k: 2; } }
+        .layer { position: absolute; inset: 0; transform-style: preserve-3d; transform: rotateX(calc(var(--my, 0) * 1deg)) rotateY(calc(var(--mx, 0) * 1deg)); transition: transform .2s ease-out; }
+        .fruit { position: absolute; animation: float 6s ease-in-out infinite; filter: drop-shadow(0 14px 14px rgba(0,0,0,.35)); }
+        .fruit span { display: block; animation: spin 9s linear infinite; }
+        @keyframes float { 50% { translate: 0 -22px; } }
+        @keyframes spin { to { transform: rotateY(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .fruit, .fruit span { animation: none; } }
+        .fade { animation: fade .25s ease; }
+        @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div id="root"></div>
+
+<script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ===== CẤU HÌNH =====
+    const USE_DEMO = true;                     // true: demo 1 món (chưa có backend) | false: gọi API /predict của Thanh
+    const API_URL = 'http://localhost:8000';   // API /predict của Thanh
+    const UPLOAD_FIELD = 'file';               // tên field ảnh trong FastAPI (đổi nếu khác)
+    const GOOGLE_CLIENT_ID = '';               // dán Google Client ID vào đây
+    const FACEBOOK_APP_ID = '';                // dán Facebook App ID vào đây
+    const FRUITS = [['🍎', 6, 10, 64, 60], ['🥑', 80, 8, 72, -60], ['🍜', 8, 68, 80, 100], ['🍣', 78, 70, 68, 40], ['🥕', 45, 3, 54, -120], ['🍋', 88, 40, 50, -40], ['🍓', 2, 40, 46, -100], ['🥦', 46, 86, 58, 80]]; // [emoji, trái%, trên%, cỡ chữ, độ sâu Z]
+    const CountUp = ({ value }) => {
+        const [n, setN] = useState(0);
+        useEffect(() => {
+            let raf, t0; const from = n;
+            const step = t => { t0 = t0 ?? t; const k = Math.min((t - t0) / 600, 1); setN(Math.round(from + (value - from) * (1 - Math.pow(1 - k, 3)))); if (k < 1) raf = requestAnimationFrame(step); };
+            raf = requestAnimationFrame(step);
+            return () => cancelAnimationFrame(raf);
+        }, [value]);
+        return n;
+    };
+    const tilt = e => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mx', ((e.clientX - r.left) / r.width - .5) * 16); e.currentTarget.style.setProperty('--my', -((e.clientY - r.top) / r.height - .5) * 10); };
+    const FruitScene = () => (
+        <div className="scene absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="layer">
+                {FRUITS.map(([e, x, y, sz, z], i) => (
+                    <div key={i} className="fruit" style={{ left: x + '%', top: y + '%', fontSize: `calc(${sz}px * var(--k, 1))`, transform: `translateZ(${z}px)`, animationDelay: `${-i * 0.9}s` }}>
+                        <span style={{ animationDelay: `${-i * 1.3}s` }}>{e}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+    const GUIDE = [
+        ['📸', 'Quét món ăn', 'Bấm "Chọn / chụp ảnh món ăn" ở thẻ xanh bên dưới và chọn ảnh bữa ăn của bạn.'],
+        ['➕', 'Thêm vào nhật ký', 'Xem calo và macro rồi bấm "Thêm vào nhật ký". Món tự xếp vào bữa theo giờ, bạn có thể đổi bữa hoặc xoá trong tab 📖 Nhật ký.'],
+        ['🎯', 'Đặt mục tiêu calo', 'Nhập chỉ số cơ thể ở mục 🧮 Máy Tính Dinh Dưỡng, mục tiêu calo mỗi ngày sẽ tự cập nhật.'],
+        ['📊', 'Xem báo cáo', 'Qua tab 📊 Báo cáo để xem 7 ngày gần nhất và lưu báo cáo tuần.']
+    ];
+    const glassInput = 'w-full px-4 py-3 bg-white/15 border border-white/40 rounded-2xl font-semibold text-white placeholder-white/70';
+    const MEAL_TYPES = [['breakfast', '🌅 Bữa sáng'], ['lunch', '☀️ Bữa trưa'], ['afternoon', '🍰 Ăn xế'], ['dinner', '🌙 Bữa tối'], ['snack', '🍿 Ăn vặt']];
+    // SỐ TẠM / 1 khẩu phần: [tên, kcal, protein, carbs, fat] -> thay bằng Bảng TPDD Việt Nam
+    const NUTRITION = {
+        phobo: ['Phở bò', 450, 28, 55, 12], comtam: ['Cơm tấm sườn', 520, 32, 58, 16], buncha: ['Bún chả', 600, 30, 70, 20],
+        spring_rolls: ['Chả giò', 250, 8, 25, 13], fried_rice: ['Cơm chiên', 480, 12, 70, 16], ramen: ['Mì ramen', 550, 22, 70, 20],
+        sushi: ['Sushi', 350, 15, 60, 5], pizza: ['Pizza', 540, 22, 66, 20], hamburger: ['Hamburger', 500, 25, 40, 26],
+        french_fries: ['Khoai tây chiên', 365, 4, 48, 17], caesar_salad: ['Salad Caesar', 330, 10, 14, 26], omelette: ['Trứng chiên', 190, 13, 1, 15]
+    };
+    const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+    const dayKey = d => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD theo giờ máy
+    const getUser = () => { try { return JSON.parse(localStorage.getItem('nv_user') || sessionStorage.getItem('nv_user')); } catch { return null; } };
+    const mealByHour = () => { const h = new Date().getHours(); return h < 5 || h >= 21 ? 'snack' : h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'afternoon' : 'dinner'; };
+    const toThumb = f => new Promise(res => {
+        const i = new Image();
+        i.onload = () => { const c = document.createElement('canvas'), k = 320 / Math.max(i.width, i.height, 320); c.width = i.width * k; c.height = i.height * k; c.getContext('2d').drawImage(i, 0, 0, c.width, c.height); URL.revokeObjectURL(i.src); res(c.toDataURL('image/jpeg', .7)); };
+        i.onerror = () => res(null);
+        i.src = URL.createObjectURL(f);
+    });
+
+    const TEAM_MEMBERS = [
+        {
+            name: 'Lê Hoàng Thanh',
+            title: 'Chủ Tịch',
+            role: 'Chairman & Founder',
+            image: 'images/thanh_le.jpg',
+            bio: 'Định hướng chiến lược phát triển hệ sinh thái NutriVN Health Platform.'
+        },
+        {
+            name: 'Võ Quốc Huy',
+            title: 'Phó Chủ Tịch',
+            role: 'Vice Chairman & Co-Founder',
+            image: 'images/huy_vo.jpg',
+            bio: 'Phụ trách điều hành tổng thể, phát triển giải pháp AI Vision.'
+        },
+        {
+            name: 'Mai Tuấn Anh',
+            title: 'Giám Đốc',
+            role: 'Executive Director',
+            image: 'images/tuan_anh.jpg',
+            bio: 'Quản lý chất lượng trải nghiệm người dùng trên nền tảng Web.'
+        },
+        {
+            name: 'Trần Văn Hồng',
+            title: 'Giám Đốc',
+            role: 'Technical Director',
+            image: 'c:\Users\LOQ\Downloads\van hong.png',
+            bio: 'Chịu trách nhiệm kiến trúc mô hình Deep Learning nhận diện thực phẩm.'
+        }
+    ];
+
+    const INITIAL_MEALS = [
+        {
+            id: '1',
+            name: 'Phở Bò Tái Sài Gòn',
+            category: 'breakfast',
+            calories: 450,
+            protein: 28,
+            carbs: 55,
+            fat: 12,
+            time: '07:30',
+            thumb: 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=100&q=80'
+        },
+        {
+            id: '3',
+            name: 'Cơm Tấm Sườn Nướng',
+            category: 'lunch',
+            calories: 520,
+            protein: 32,
+            carbs: 58,
+            fat: 16,
+            time: '12:15',
+            thumb: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80'
+        }
+    ];
+
+    const FAQ_ITEMS = [
+        {
+            id: 1,
+            question: "NutriVN nhận diện món ăn Việt bằng cách nào?",
+            answer: "Máy quét AI của NutriVN dựa trên mô hình Deep Learning được huấn luyện từ hàng nghìn hình ảnh đĩa/tô thực phẩm đặc trưng Việt Nam."
+        },
+        {
+            id: 2,
+            question: "Cơ sở dữ liệu 12 món ăn Việt có chuẩn dinh dưỡng không?",
+            answer: "Toàn bộ thông số Calo và tỉ lệ Macro (Protein, Carbs, Fat) cho 12 món ăn cốt lõi được tham chiếu trực tiếp từ Bảng Thành Phần Dinh Dưỡng Thực Phẩm Việt Nam."
+        },
+        {
+            id: 3,
+            question: "Lượng nước uống được tính toán như thế nào?",
+            answer: "Công thức y khoa tiêu chuẩn khuyến nghị 35ml nước trên mỗi 1kg trọng lượng cơ thể."
+        },
+        {
+            id: 4,
+            question: "Dữ liệu và ảnh của tôi có được bảo mật không?",
+            answer: "Nhật ký ăn uống, mục tiêu calo và báo cáo tuần được lưu ngay trên trình duyệt của bạn. NutriVN không lưu mật khẩu, ảnh món ăn chỉ dùng để nhận diện món và bạn có thể đăng xuất bất cứ lúc nào."
+        },
+        {
+            id:5,
+            question: "Nếu muốn đóng góp ý kiến hay phản ứng lỗi thì liên hệ chúng tôi qua đâu?",
+            answer: "Ban quản trị NutriVN luôn sẵn sàng lắng nghe bạn! Bạn có thể kết nối trực tiếp với chúng tôi qua các kênh truyền thông chính thức ở chân trang web (Footer) như Facebook, Zalo, GitHub hoặc xem thông tin trong mục Ban Lãnh Đạo."
+        }
+    ];
+
+    function NutriApp() {
+        const [meals, setMeals] = useState(() => load('nv_meals', INITIAL_MEALS).filter(m => !m.name.includes('Cà Phê')).map(m => ({ date: dayKey(new Date()), ...m })));
+        const [activeTab, setActiveTab] = useState('home');
+        const [heroScanState, setHeroScanState] = useState('idle');
+        const [heroScannedDish, setHeroScannedDish] = useState(null);
+        const [scanErr, setScanErr] = useState('');
+
+        const today = dayKey(new Date());
+        const todayMeals = meals.filter(m => m.date === today);
+        const sum = k => todayMeals.reduce((a, m) => a + (m[k] || 0), 0);
+        const totalCal = todayMeals.reduce((acc, curr) => acc + curr.calories, 0);
+        const [targetCal, setTargetCal] = useState(() => load('nv_target', 1600));
+        const remainingCal = Math.max(targetCal - totalCal, 0);
+        const progress = Math.min(Math.round((totalCal / targetCal) * 100), 100);
+
+        const [goalType, setGoalType] = useState('lose');
+        const [isAuthOpen, setIsAuthOpen] = useState(false);
+        const [showPw, setShowPw] = useState(false);
+        const [toast, setToast] = useState('');
+        const notify = m => { setToast(m); setTimeout(() => setToast(''), 2500); };
+        const [authMode, setAuthMode] = useState('login');
+        const [rememberMe, setRememberMe] = useState(true);
+        const [authName, setAuthName] = useState('');
+        const [isLoggedIn, setIsLoggedIn] = useState(() => !!getUser());
+        const [userEmail, setUserEmail] = useState(() => getUser()?.name || getUser()?.email || '');
+        const [isTeamOpen, setIsTeamOpen] = useState(false);
+        const [isGuideOpen, setIsGuideOpen] = useState(false);
+        const [openFaqId, setOpenFaqId] = useState(1);
+
+        const [calcWeight, setCalcWeight] = useState(65);
+        const [calcHeight, setCalcHeight] = useState(170);
+        const [calcAge, setCalcAge] = useState(25);
+        const [calcGender, setCalcGender] = useState('male');
+        const [calcActivity, setCalcActivity] = useState(1.375);
+        const [isCalculated, setIsCalculated] = useState(false);
+        const [calcResult, setCalcResult] = useState(null);
+
+        const weeklyHistory = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(); d.setDate(d.getDate() - (6 - i));
+            const key = dayKey(d);
+            return {
+                day: i === 6 ? 'Hôm nay' : ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()],
+                date: d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+                calories: meals.filter(m => m.date === key).reduce((a, m) => a + m.calories, 0)
+            };
+        });
+        const loggedDays = weeklyHistory.filter(d => d.calories > 0);
+        const weekAvg = loggedDays.length ? Math.round(loggedDays.reduce((a, d) => a + d.calories, 0) / loggedDays.length) : 0;
+        const chartMax = Math.max(targetCal * 1.4, ...weeklyHistory.map(d => d.calories * 1.15));
+
+        const [savedWeeklyLogs, setSavedWeeklyLogs] = useState(() => load('nv_weeks', []).filter(l => l.week !== 'Tuần 44 (20/10 - 26/10)'));
+
+        const [isWeeklySaved, setIsWeeklySaved] = useState(false);
+
+                useEffect(() => {
+            try { localStorage.setItem('nv_meals', JSON.stringify(meals)); localStorage.setItem('nv_target', targetCal); localStorage.setItem('nv_weeks', JSON.stringify(savedWeeklyLogs)); } catch {}
+        }, [meals, targetCal, savedWeeklyLogs]);
+
+        useEffect(() => {
+            const h = e => { if (e.key === 'Escape') { setIsAuthOpen(false); setIsTeamOpen(false); } };
+            window.addEventListener('keydown', h);
+            return () => window.removeEventListener('keydown', h);
+        }, []);
+
+        useEffect(() => {
+            if (!FACEBOOK_APP_ID) return;
+            const sc = document.createElement('script');
+            sc.src = 'https://connect.facebook.net/vi_VN/sdk.js'; sc.async = true;
+            sc.onload = () => FB.init({ appId: FACEBOOK_APP_ID, version: 'v23.0', cookie: false, xfbml: false });
+            document.body.appendChild(sc);
+        }, []);
+
+        useEffect(() => {
+            if (!isAuthOpen || !GOOGLE_CLIENT_ID || !window.google) return;
+            google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: r => {
+                const p = JSON.parse(decodeURIComponent(escape(atob(r.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))));
+                login({ email: p.email, name: p.name, provider: 'google' });
+            } });
+            google.accounts.id.renderButton(document.getElementById('g-btn'), { theme: 'outline', size: 'large', width: 280, text: 'continue_with' });
+        }, [isAuthOpen]);
+
+        const handleSaveWeekToDatabase = () => {
+            if (!loggedDays.length) return;
+            const record = { key: today, week: `7 ngày (${weeklyHistory[0].date} - ${weeklyHistory[6].date})`, avgCal: weekAvg, daysRecorded: loggedDays.length, status: weekAvg <= targetCal ? 'Đạt mục tiêu' : 'Vượt calo' };
+            setSavedWeeklyLogs(prev => [record, ...prev.filter(l => l.key !== today)]);
+            setIsWeeklySaved(true);
+            setTimeout(() => setIsWeeklySaved(false), 3000);
+        };
+
+        const login = (u, msg = 'Đăng nhập thành công') => {
+            setIsLoggedIn(true); setUserEmail(u.name || u.email || '');
+            setIsAuthOpen(false); notify(msg);
+            try { (rememberMe ? localStorage : sessionStorage).setItem('nv_user', JSON.stringify(u)); } catch {} // không lưu mật khẩu/token
+        };
+        const logout = () => {
+            try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
+            setIsLoggedIn(false); setUserEmail(''); notify('Đã đăng xuất');
+        };
+        const handleAuthSubmit = (e) => {
+            e.preventDefault();
+            login({ email: userEmail, name: authName, provider: 'email' }, authMode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
+            setAuthName('');
+        };
+        const fbLogin = () => {
+            if (!FACEBOOK_APP_ID || !window.FB) return notify('Chưa điền FACEBOOK_APP_ID (hoặc SDK chưa tải xong)');
+            FB.login(r => { if (r.authResponse) FB.api('/me', { fields: 'name,email' }, u => login({ email: u.email || u.name, name: u.name, provider: 'facebook' })); }, { scope: 'public_profile,email' });
+        };
+
+        const handleCalculateHealth = () => {
+            let bmrVal = calcGender === 'male'
+                ? 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge + 5
+                : 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge - 161;
+            const tdeeVal = Math.round(bmrVal * calcActivity);
+
+            let targetCalVal = tdeeVal;
+            let goalText = 'Duy trì cân nặng ổn định trong tháng';
+            switch(goalType) {
+                case 'lose':
+                    targetCalVal = Math.max(tdeeVal - 400, 1200);
+                    goalText = 'Lộ trình giảm 1.5 - 2kg / tháng an toàn';
+                    break;
+                case 'gain_muscle':
+                    targetCalVal = tdeeVal + 300;
+                    goalText = 'Lộ trình săn chắc & tăng cơ tháng này';
+                    break;
+                case 'gain':
+                    targetCalVal = tdeeVal + 500;
+                    goalText = 'Lộ trình tăng 1.5 - 2kg / tháng';
+                    break;
+                default:
+                    targetCalVal = tdeeVal;
+                    goalText = 'Duy trì sức khỏe & cân nặng trong tháng';
+            }
+
+            const waterVal = (calcWeight * 0.035).toFixed(1);
+
+            setTargetCal(targetCalVal);
+            setCalcResult({
+                tdee: targetCalVal,
+                water: waterVal,
+                goalText: goalText
+            });
+            setIsCalculated(true);
+        };
+
+        const handleFile = async (e) => {
+            const f = e.target.files[0]; e.target.value = '';
+            if (!f) return;
+            setActiveTab('home');
+            if (!f.type.startsWith('image/') || f.size > 8e6) { setScanErr('Chỉ nhận file ảnh dưới 8MB'); return; }
+            setScanErr(''); setHeroScanState('scanning');
+            const thumb = await toThumb(f);
+            try {
+                let d;
+                if (USE_DEMO) {
+                    await new Promise(r => setTimeout(r, 1200));
+                    d = { mon: 'phobo', do_tin_cay: 0.92, chac_chan: true };
+                } else {
+                    const fd = new FormData(); fd.append(UPLOAD_FIELD, f);
+                    const r = await fetch(API_URL + '/predict', { method: 'POST', body: fd });
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    d = await r.json();
+                }
+                const n = NUTRITION[d.mon];
+                if (!n) throw new Error('món "' + d.mon + '" chưa có trong bảng dinh dưỡng');
+                setHeroScannedDish({ name: n[0], calories: n[1], protein: n[2], carbs: n[3], fat: n[4], thumb, conf: Math.round(d.do_tin_cay * 100), sure: d.chac_chan });
+                setHeroScanState('result');
+            } catch (err) {
+                setScanErr('Không nhận diện được: ' + err.message + '. Kiểm tra API đang chạy ở ' + API_URL + ' và đã bật CORS.');
+                setHeroScanState('idle');
+            }
+        };
+
+        const addMeal = (dish) => {
+            const newM = {
+                id: Date.now().toString(),
+                date: dayKey(new Date()),
+                name: dish.name,
+                category: mealByHour(),
+                calories: dish.calories,
+                protein: dish.protein,
+                carbs: dish.carbs,
+                fat: dish.fat,
+                time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                thumb: dish.thumb || null
+            };
+            setMeals(prev => [...prev, newM]);
+            setActiveTab('diary');
+        };
+
+        return (
+            <div className={`min-h-screen bg-slate-50 ${isLoggedIn ? 'pb-12' : ''}`}>
+                {!isLoggedIn ? (
+                    <section onMouseMove={tilt} className="relative min-h-screen overflow-hidden bg-gradient-to-r from-emerald-800 via-emerald-600 to-teal-400 text-white">
+                        <div className="landing-scene absolute inset-y-0 right-0 w-full md:w-3/5 opacity-50 md:opacity-100"><FruitScene /></div>
+                        <div className="relative z-10 flex items-center justify-between px-6 py-5">
+                            <span className="text-xl font-black tracking-tight">NutriVN</span>
+                            <button onClick={() => { setAuthMode('login'); setIsAuthOpen(true); }} className="bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/30 rounded-full px-4 py-2 text-sm font-bold">👤 Đăng nhập</button>
+                        </div>
+                        <div className="relative z-10 flex items-center px-6 md:px-16 min-h-[calc(100vh-76px)]">
+                            <div className="max-w-xl space-y-6">
+                                <h1 className="text-4xl md:text-6xl font-black leading-tight">
+                                    Ứng dụng theo dõi<br />
+                                    <span className="inline-block bg-white text-emerald-700 px-3 py-1 rounded-2xl my-1">dinh dưỡng</span><br />
+                                    bằng ảnh món ăn
+                                </h1>
+                                <p className="text-base md:text-lg text-white/90 max-w-md">Chụp một bức ảnh, NutriVN nhận diện món ăn và tính calo, protein, carbs, fat giúp bạn ăn uống tốt hơn mỗi ngày.</p>
+                                <button onClick={() => { setAuthMode('register'); setIsAuthOpen(true); }} className="bg-white text-emerald-700 font-black text-sm md:text-base px-8 py-4 rounded-full shadow-xl hover:bg-emerald-50 flex items-center gap-2">BẮT ĐẦU MIỄN PHÍ <span>›</span></button>
+                                <p className="text-xs text-white/80">Đã có tài khoản? <button onClick={() => { setAuthMode('login'); setIsAuthOpen(true); }} className="font-black underline">Đăng nhập</button></p>
+                            </div>
+                        </div>
+                    </section>
+                ) : (<>
+                <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-3 shadow-sm">
+                    <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center justify-between w-full sm:w-auto">
+                            <div className="flex items-center space-x-2">
+                                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-lg shadow-sm">
+                                    N
+                                </div>
+                                <div>
+                                    <h1 className="font-extrabold text-slate-900 text-base leading-tight">NutriVN</h1>
+                                    <p className="text-[10px] text-emerald-600 font-bold">Web Platform AI Việt Nam</p>
+                                </div>
+                            </div>
+                            <button onClick={isLoggedIn ? logout : () => setIsAuthOpen(true)} className="sm:hidden px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs">
+                                {isLoggedIn ? '⏻ Đăng xuất' : '🔑 Đăng Nhập'}
+                            </button>
+                        </div>
+
+                        <nav className="flex items-center space-x-1 bg-slate-100 p-1 rounded-2xl text-xs font-extrabold w-full sm:w-auto justify-between sm:justify-start">
+                            <button onClick={() => setActiveTab('home')} className={`px-3 py-1.5 rounded-xl transition-all ${activeTab === 'home' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>🏠 Trang chủ</button>
+                            <button onClick={() => setActiveTab('diary')} className={`px-3 py-1.5 rounded-xl transition-all ${activeTab === 'diary' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>📖 Nhật ký</button>
+                            <button onClick={() => setActiveTab('reports')} className={`px-3 py-1.5 rounded-xl transition-all ${activeTab === 'reports' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}>📊 Báo cáo</button>
+                        </nav>
+
+                        <button onClick={isLoggedIn ? logout : () => setIsAuthOpen(true)} className="hidden sm:block px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all">
+                            {isLoggedIn ? `👤 ${userEmail || 'Tài khoản'} · Đăng xuất` : '🔑 Đăng Nhập / Đăng Ký'}
+                        </button>
+                    </div>
+                </header>
+
+                <section className="bg-slate-900 text-white py-4 px-4 text-center">
+                    <div className="max-w-xl mx-auto space-y-1">
+                        <span className="inline-block bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 px-3 py-0.5 rounded-full text-[10px] font-bold">⚡ Nền Tảng Web Dinh Dưỡng</span>
+                        <h2 className="text-lg font-black leading-tight">Chụp Ảnh Món Ăn - Tính Calo Tức Thì</h2>
+                        <p className="text-[11px] text-slate-300">Nhận diện chính xác khẩu phần & dinh dưỡng món ăn Việt</p>
+                    </div>
+                </section>
+
+                <main key={activeTab} className="fade max-w-xl mx-auto px-3 pt-4 space-y-4">
+                    {activeTab === 'home' && (
+                        <div className="space-y-4">
+                            {isLoggedIn && <h2 className="px-1 text-lg font-black text-slate-800">Xin chào, <span className="text-emerald-600">{userEmail.split('@')[0]}</span> 👋</h2>}
+                            <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-white shadow-sm">
+                                <button
+                                    type="button"
+                                    aria-expanded={isGuideOpen}
+                                    onClick={() => setIsGuideOpen(open => !open)}
+                                    className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-extrabold text-emerald-700"
+                                >
+                                    <span>📖 Hướng dẫn sử dụng</span>
+                                    <span>{isGuideOpen ? 'Thu gọn ▲' : 'Mở ▼'}</span>
+                                </button>
+                                {isGuideOpen && (
+                                    <div className="space-y-3 border-t border-emerald-100 px-5 py-4">
+                                        {GUIDE.map(([icon, title, description]) => (
+                                            <div key={title} className="flex items-start gap-3 text-xs">
+                                                <span className="text-base">{icon}</span>
+                                                <div>
+                                                    <h3 className="font-extrabold text-slate-800">{title}</h3>
+                                                    <p className="mt-0.5 leading-relaxed text-slate-600">{description}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                            <section className="bg-gradient-to-b from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-emerald-500">
+                                <div className="text-center space-y-1">
+                                    <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                                        📸 TÍNH NĂNG CHÍNH
+                                    </span>
+                                    <h3 className="text-xl font-black">QUÉT MÓN ĂN VIỆT BẰNG AI</h3>
+                                    <p className="text-xs text-emerald-100">Đưa camera vào tô/đĩa thức ăn để tính calo ngay</p>
+                                </div>
+
+                                <div className="bg-white text-slate-900 rounded-2xl p-3 shadow-md space-y-3">
+                                    {heroScanState === 'idle' && (
+                                        <div className="py-3 text-center space-y-2">
+                                            <div className="w-12 h-12 bg-emerald-100 text-emerald-700 text-2xl rounded-full flex items-center justify-center mx-auto">📷</div>
+                                            <p className="text-xs font-bold text-slate-700">Chưa có ảnh được quét</p>
+                                        </div>
+                                    )}
+                                    {heroScanState === 'scanning' && (
+                                        <div className="py-5 text-center space-y-2">
+                                            <div className="text-3xl animate-bounce">🤖</div>
+                                            <p className="text-xs font-extrabold text-emerald-800 animate-pulse">Đang quét dinh dưỡng món ăn...</p>
+                                        </div>
+                                    )}
+                                    {heroScanState === 'result' && heroScannedDish && (
+                                        <div className="space-y-2">
+                                            {heroScannedDish.thumb && <img src={heroScannedDish.thumb} alt="" className="w-full h-28 object-cover rounded-xl" />}
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="font-extrabold text-slate-900">{heroScannedDish.name}</span>
+                                                <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{heroScannedDish.calories} kcal</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 font-bold">P:{heroScannedDish.protein}g C:{heroScannedDish.carbs}g F:{heroScannedDish.fat}g • Độ tin cậy {heroScannedDish.conf}%</div>
+                                            {!heroScannedDish.sure && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp, hãy chụp lại rõ hơn.</p>}
+                                            <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">THÊM VÀO NHẬT KÝ</button>
+                                        </div>
+                                    )}
+                                    {scanErr && heroScanState === 'idle' && <p className="text-[10px] font-bold text-rose-600 text-center px-2">{scanErr}</p>}
+                                </div>
+
+                                <label className="block text-center w-full py-3.5 rounded-2xl bg-white hover:bg-emerald-50 text-emerald-800 font-black text-sm shadow-md cursor-pointer">
+                                    📸 CHỌN / CHỤP ẢNH MÓN ĂN
+                                    <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
+                                </label>
+                            </section>
+
+                            {/* Daily Calorie Budget Progress */}
+                            <section className="bg-gradient-to-br from-emerald-50 to-white rounded-3xl p-5 border border-emerald-200 shadow-sm space-y-4">
+                                <h3 className="font-extrabold text-emerald-700 text-sm">⚡ Ngân Sách Calo Hôm Nay</h3>
+                                <div className="flex items-center gap-5">
+                                    <div className="relative w-32 h-32 shrink-0">
+                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                            <path className="text-emerald-100" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                            <path className={(totalCal > targetCal ? 'text-rose-500' : 'text-emerald-500') + ' transition-all duration-700'} strokeDasharray={`${progress}, 100`} strokeWidth="3.5" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-2xl font-black text-slate-900 leading-none"><CountUp value={progress} />%</span>
+                                            <span className="text-[10px] font-bold text-emerald-600 mt-1">hoàn thành</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 space-y-2">
+                                        <div className="bg-white rounded-2xl border border-emerald-200 px-3 py-2.5 shadow-sm">
+                                            <div className="text-[10px] font-bold text-slate-500">🎯 Mục tiêu mỗi ngày</div>
+                                            <div className="text-2xl font-black text-emerald-700 leading-tight"><CountUp value={targetCal} /> <span className="text-xs font-bold text-slate-500">kcal</span></div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-center">
+                                            <div className="bg-white rounded-xl border border-slate-200 py-1.5">
+                                                <div className="text-[10px] font-bold text-slate-500">Đã ăn</div>
+                                                <div className="text-sm font-black text-slate-900"><CountUp value={totalCal} /></div>
+                                            </div>
+                                            <div className="bg-white rounded-xl border border-slate-200 py-1.5">
+                                                <div className="text-[10px] font-bold text-slate-500">Còn lại</div>
+                                                <div className="text-sm font-black text-emerald-600"><CountUp value={remainingCal} /></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                                    {[['Protein', 'protein', 'bg-sky-100 text-sky-700'], ['Carbs', 'carbs', 'bg-amber-100 text-amber-700'], ['Fat', 'fat', 'bg-rose-100 text-rose-700']].map(([name, k, c]) => (
+                                        <div key={k} className={`rounded-xl py-1.5 ${c}`}>
+                                            <div className="text-[10px] font-bold">{name}</div>
+                                            <div className="text-sm font-black">{sum(k)}g</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            {/* Health & BMR Monthly Calculator Section */}
+                            <section className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
+                                <div className="border-b pb-2">
+                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase">🧮 Máy Tính Dinh Dưỡng & Nước Uống Theo Tháng</h3>
+                                    <p className="text-[10px] text-slate-500 font-bold">Tính chỉ số BMR/TDEE dựa trên thông số sinh học</p>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-slate-500">Mục tiêu theo tháng:</label>
+                                    <div className="grid grid-cols-2 gap-1.5 text-xs font-bold">
+                                        <button onClick={() => setGoalType('lose')} className={`p-2 rounded-xl border ${goalType === 'lose' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>📉 Giảm cân</button>
+                                        <button onClick={() => setGoalType('gain_muscle')} className={`p-2 rounded-xl border ${goalType === 'gain_muscle' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>🏋️ Tăng cơ</button>
+                                        <button onClick={() => setGoalType('gain')} className={`p-2 rounded-xl border ${goalType === 'gain' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>📈 Tăng cân</button>
+                                        <button onClick={() => setGoalType('keep')} className={`p-2 rounded-xl border ${goalType === 'keep' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>⚖️ Giữ cân</button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 text-xs">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Cân nặng (kg)</label>
+                                            <input type="number" value={calcWeight} onChange={e => { setCalcWeight(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Chiều cao (cm)</label>
+                                            <input type="number" value={calcHeight} onChange={e => { setCalcHeight(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Độ tuổi</label>
+                                            <input type="number" value={calcAge} onChange={e => { setCalcAge(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Giới tính</label>
+                                            <select value={calcGender} onChange={e => { setCalcGender(e.target.value); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+                                                <option value="male">Nam</option>
+                                                <option value="female">Nữ</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500">Mức vận động</label>
+                                        <select value={calcActivity} onChange={e => { setCalcActivity(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+                                            <option value={1.2}>Ít vận động</option>
+                                            <option value={1.375}>Nhẹ (1-3 buổi/tuần)</option>
+                                            <option value={1.55}>Vừa (3-5 buổi/tuần)</option>
+                                            <option value={1.725}>Nhiều (6-7 buổi/tuần)</option>
+                                        </select>
+                                    </div>
+                                    <button onClick={handleCalculateHealth} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition-all cursor-pointer">
+                                        ⚡ XÁC NHẬN & TÍNH CHỈ SỐ THEO THÁNG
+                                    </button>
+                                    {isCalculated && calcResult ? (
+                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                                            <div className="grid grid-cols-2 gap-2 text-center">
+                                                <div className="bg-white p-2 rounded-xl border border-emerald-100">
+                                                    <span className="text-[10px] text-slate-500 font-bold block">Nhu Cầu Calo/Ngày</span>
+                                                    <span className="text-base font-black text-emerald-700">{calcResult.tdee} kcal</span>
+                                                </div>
+                                                <div className="bg-white p-2 rounded-xl border border-emerald-100">
+                                                    <span className="text-[10px] text-slate-500 font-bold block">Nước Cần Uống</span>
+                                                    <span className="text-base font-black text-sky-600">{calcResult.water} Lít/ngày</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] font-bold text-emerald-800 text-center">💡 {calcResult.goalText}</p>
+                                            <p className="text-[10px] font-black text-emerald-700 text-center">✓ Đã cập nhật mục tiêu calo hôm nay ở mục Ngân Sách Calo</p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-slate-400 font-bold text-center italic">👉 Nhập thông số và bấm "XÁC NHẬN" để xem nhu cầu calo & nước uống</p>
+                                    )}
+                                </div>
+                            </section>
+
+                            {/* Interactive FAQ Accordion Section */}
+                            <section className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
+                                <div className="border-b pb-2">
+                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase">❓ Câu Hỏi Thường Gặp (FAQ)</h3>
+                                    <p className="text-[10px] text-slate-500 font-bold">Bấm vào từng câu hỏi để xem lời giải đáp</p>
+                                </div>
+
+                                <div className="space-y-2 text-xs">
+                                    {FAQ_ITEMS.map((faq) => (
+                                        <div key={faq.id} className="border border-slate-200 rounded-2xl overflow-hidden transition-all">
+                                            <button 
+                                                onClick={() => setOpenFaqId(openFaqId === faq.id ? null : faq.id)}
+                                                className="w-full p-3 bg-slate-50 text-left font-extrabold text-slate-800 flex justify-between items-center"
+                                            >
+                                                <span>{faq.question}</span>
+                                                <span className="text-slate-400 text-sm">{openFaqId === faq.id ? '−' : '+'}</span>
+                                            </button>
+                                            {openFaqId === faq.id && (
+                                                <div className="p-3 bg-white border-t border-slate-100 text-[11px] text-slate-600 leading-relaxed font-medium">
+                                                    {faq.answer}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        </div>
+                    )}
+
+                    {activeTab === 'diary' && (
+                        <div className="space-y-4">
+                            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
+                                <span className="font-bold text-emerald-900">
+                                    {remainingCal > 0 ? `🟢 Đạt chuẩn calo ngày hôm nay (còn ${remainingCal} kcal)` : '🔴 Bạn đã vượt quá hạn mức calo mục tiêu!'}
+                                </span>
+                                <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">{progress}%</span>
+                            </div>
+
+                            <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
+                                <div className="flex justify-between items-center border-b pb-2">
+                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase">📖 Nhật Ký Bữa Ăn Hôm Nay</h3>
+                                    <span className="text-[10px] text-emerald-600 font-bold">{todayMeals.length} món đã lưu</span>
+                                </div>
+                                <div className="space-y-2">
+                                    {todayMeals.length === 0 && <p className="text-center text-[10px] text-slate-400 font-bold py-4">Chưa có món nào</p>}
+                                    {MEAL_TYPES.map(([k, label]) => {
+                                        const list = todayMeals.filter(m => m.category === k);
+                                        return list.length > 0 && (
+                                            <div key={k} className="space-y-2">
+                                                <div className="text-[10px] font-black text-slate-500 uppercase">{label}</div>
+                                                {list.map(m => (
+                                                    <div key={m.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-2">
+                                                        <div className="flex items-center space-x-3 min-w-0">
+                                                            {m.thumb ? <img src={m.thumb} alt={m.name} className="w-10 h-10 rounded-xl object-cover shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">🍽️</div>}
+                                                            <div className="min-w-0">
+                                                                <div className="font-bold text-xs text-slate-900 truncate">{m.name}</div>
+                                                                <div className="text-[10px] text-slate-500">{m.time} • P:{m.protein}g C:{m.carbs}g F:{m.fat}g</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center space-x-1.5 shrink-0">
+                                                            <span className="font-black text-emerald-600 text-xs">{m.calories} kcal</span>
+                                                            <select value={m.category} onChange={e => setMeals(p => p.map(x => x.id === m.id ? { ...x, category: e.target.value } : x))} className="text-[10px] bg-white border border-slate-200 rounded-lg p-1 font-bold">
+                                                                {MEAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                                            </select>
+                                                            <button onClick={() => setMeals(p => p.filter(x => x.id !== m.id))} aria-label="Xoá món" className="text-rose-500 hover:bg-rose-50 rounded-lg px-1.5 font-black">✕</button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'reports' && (
+                        <div className="space-y-4">
+                            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <div>
+                                        <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">📊 Biểu Đồ Xu Hướng Calo 7 Ngày</h3>
+                                        <p className="text-[10px] text-slate-500 font-bold">Hiển thị chuẩn lượng calo từng ngày</p>
+                                    </div>
+                                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2.5 py-1 rounded-full">
+                                        TB: {weekAvg} kcal/ngày
+                                    </span>
+                                </div>
+
+                                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full">🎯 Mục tiêu {targetCal} kcal/ngày</span>
+                                        <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
+                                            <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-500"></i>Đạt</span>
+                                            <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-rose-400"></i>Vượt</span>
+                                        </div>
+                                    </div>
+                                    <div className="relative h-44">
+                                        <div className="absolute inset-x-0 border-t-2 border-dashed border-emerald-500 z-10 pointer-events-none" style={{ bottom: `${Math.min(targetCal / chartMax * 100, 100)}%` }}></div>
+                                        <div className="grid grid-cols-7 gap-2 h-full items-end">
+                                            {weeklyHistory.map((d, i) => (
+                                                <div key={i} className="h-full flex flex-col justify-end items-center">
+                                                    <span className={`text-[10px] font-black mb-1 ${d.calories > targetCal ? 'text-rose-600' : 'text-emerald-700'}`}>{d.calories || ''}</span>
+                                                    <div style={{ height: `${d.calories / chartMax * 100}%` }} className={`w-full rounded-t-lg transition-all duration-500 ${d.calories > targetCal ? 'bg-rose-400' : 'bg-emerald-500'} ${i === 6 ? 'shadow-md' : ''}`}></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-2 text-center">
+                                        {weeklyHistory.map((d, i) => <span key={i} className={`text-[10px] font-extrabold ${i === 6 ? 'text-emerald-700' : 'text-slate-500'}`}>{d.day}</span>)}
+                                    </div>
+                                </div>
+
+                                <div className="pt-2">
+                                    <button 
+                                        onClick={handleSaveWeekToDatabase} disabled={!loggedDays.length}
+                                        className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                                    >
+                                        <span>💾 LƯU BÁO CÁO 7 NGÀY VÀO NHẬT KÝ DATABASE</span>
+                                    </button>
+                                    {isWeeklySaved && (
+                                        <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">
+                                            ✓ Đã lưu thành công báo cáo tuần này vào Cơ sở dữ liệu!
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
+                                <div className="border-b border-slate-100 pb-2">
+                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">📂 Lịch Sử Các Tuần Đã Lưu Trong Database</h3>
+                                    <p className="text-[10px] text-slate-500 font-bold">Danh sách báo cáo 7 ngày đã được ghi nhận</p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {savedWeeklyLogs.length === 0 && <p className="text-center text-[10px] text-slate-400 font-bold py-3">Chưa có báo cáo tuần nào được lưu</p>}
+                                    {savedWeeklyLogs.map((log, index) => (
+                                        <div key={index} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                                            <div>
+                                                <div className="font-black text-slate-900">{log.week}</div>
+                                                <div className="text-[10px] text-slate-500 font-bold">Trung bình: {log.avgCal} kcal/ngày • {log.daysRecorded} ngày ghi chép</div>
+                                            </div>
+                                            <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[10px] font-black">
+                                                {log.status}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </main>
+                </>)}
+
+                {isAuthOpen && (
+                    <div onMouseMove={tilt} className="fade fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-emerald-900 via-emerald-700 to-teal-500">
+                        <div className="pointer-events-none absolute -top-24 -left-24 w-80 h-80 bg-lime-300/40 rounded-full blur-3xl"></div>
+                        <div className="pointer-events-none absolute bottom-0 -right-24 w-96 h-96 bg-teal-300/40 rounded-full blur-3xl"></div>
+                        <FruitScene />
+                        <button onClick={() => setIsAuthOpen(false)} className="absolute top-4 left-4 z-10 text-white/90 hover:text-white font-bold text-sm">← Trang chủ</button>
+                        <div className="relative min-h-full flex items-center justify-center p-5 pt-14">
+                            <div className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/30 rounded-[2rem] shadow-2xl p-7 space-y-5 text-white">
+                                <div className="text-center space-y-1">
+                                    <h2 className="text-3xl font-black">{authMode === 'login' ? 'Chào mừng trở lại' : 'Tạo tài khoản'}</h2>
+                                    <p className="text-sm text-white/80">{authMode === 'login' ? 'Đăng nhập để tiếp tục với NutriVN' : 'Đăng ký để theo dõi dinh dưỡng mỗi ngày'}</p>
+                                </div>
+
+                                <form onSubmit={handleAuthSubmit} className="space-y-3 text-sm">
+                                    {authMode === 'register' && <input type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Họ và tên" required className={glassInput} />}
+                                    <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} placeholder="Email" required className={glassInput} />
+                                    <div className="relative">
+                                        <input type={showPw ? 'text' : 'password'} placeholder="Mật khẩu" required minLength={6} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} className={glassInput + ' pr-11'} />
+                                        <button type="button" onClick={() => setShowPw(!showPw)} aria-label="Hiện/ẩn mật khẩu" className="absolute right-3 top-1/2 -translate-y-1/2">{showPw ? '🙈' : '👁️'}</button>
+                                    </div>
+                                    {authMode === 'login' && (
+                                        <div className="flex items-center justify-between text-xs font-semibold">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 accent-white" />
+                                                Ghi nhớ đăng nhập
+                                            </label>
+                                            <a href="#" onClick={e => e.preventDefault()} className="hover:underline">Quên mật khẩu?</a>
+                                        </div>
+                                    )}
+                                    <button type="submit" className="w-full py-3.5 bg-white/90 hover:bg-white text-slate-900 font-black rounded-2xl shadow-lg">
+                                        {authMode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
+                                    </button>
+                                </form>
+
+                                <div className="space-y-2.5 text-sm">
+                                    <div className="flex items-center text-[11px] text-white/70 font-bold"><span className="flex-1 border-t border-white/30"></span><span className="px-3">HOẶC</span><span className="flex-1 border-t border-white/30"></span></div>
+                                    {GOOGLE_CLIENT_ID
+                                        ? <div id="g-btn" className="flex justify-center"></div>
+                                        : <button type="button" onClick={() => notify('Chưa điền GOOGLE_CLIENT_ID')} className="w-full py-3 bg-white/90 hover:bg-white text-slate-800 rounded-2xl font-bold flex items-center justify-center gap-2">
+                                            <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+                                            Tiếp tục với Google
+                                        </button>}
+                                    <button type="button" onClick={fbLogin} className="w-full py-3 bg-[#1877F2] hover:bg-[#166fe0] text-white rounded-2xl font-bold flex items-center justify-center gap-2">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.7 4.53-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
+                                        Tiếp tục với Facebook
+                                    </button>
+                                </div>
+
+                                <p className="text-center text-xs text-white/80">
+                                    {authMode === 'login' ? 'Chưa có tài khoản? ' : 'Đã có tài khoản? '}
+                                    <button type="button" onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="font-black text-white hover:underline">{authMode === 'login' ? 'Tạo tài khoản' : 'Đăng nhập'}</button>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {toast && (
+                    <div className="fixed bottom-24 inset-x-0 flex justify-center z-[60] pointer-events-none">
+                        <div className="fade bg-slate-900/90 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg">{toast}</div>
+                    </div>
+                )}
+
+                {isLoggedIn && (<>
+                <footer className="max-w-xl mx-auto mt-8 px-4 py-4 border-t border-slate-200 text-center space-y-2 text-xs">
+                    <div className="flex justify-center space-x-4 text-slate-500 font-bold">
+                        <a href="https://facebook.com" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Facebook</a>
+                        <a href="https://zalo.me" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Zalo</a>
+                        <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-emerald-600">GitHub</a>
+                        <button onClick={() => setIsTeamOpen(true)} className="hover:text-emerald-600 cursor-pointer">Ban Lãnh Đạo</button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-bold">© 2026 NutriVN FoodTech AI. All rights reserved.</p>
+                </footer>
+
+                {isTeamOpen && (
+                    <div onClick={() => setIsTeamOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div onClick={e => e.stopPropagation()} className="fade bg-white rounded-3xl p-5 max-w-sm w-full space-y-4">
+                            <div className="flex justify-between items-center border-b pb-2">
+                                <h3 className="font-extrabold text-slate-900 text-sm">👥 Ban Lãnh Đạo NutriVN</h3>
+                                <button onClick={() => setIsTeamOpen(false)} className="text-slate-400 font-black">✕</button>
+                            </div>
+                            <div className="space-y-3">
+                                {TEAM_MEMBERS.map((member, idx) => (
+                                    <div key={idx} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-start space-x-3">
+                                        <img src={member.image} alt={member.name} className="w-12 h-12 rounded-xl object-cover" />
+                                        <div>
+                                            <div className="font-black text-xs text-slate-900">{member.name}</div>
+                                            <div className="text-[10px] text-emerald-600 font-bold">{member.role}</div>
+                                            <p className="text-[10px] text-slate-500">{member.bio}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+                </>)}
+            </div>
+        );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<NutriApp />);
+</script>
+</body>
+</html>
