@@ -441,7 +441,7 @@
             google.accounts.id.renderButton(document.getElementById('g-btn'), { theme: 'outline', size: 'large', width: 280, text: 'continue_with' });
         }, [isAuthOpen]);
 
-        const handleSaveWeekToDatabase = () => {
+        const handleSaveWeekToDevice = () => {
             if (!loggedDays.length) return;
             const record = { key: today, week: `7 ngày (${weeklyHistory[0].date} - ${weeklyHistory[6].date})`, avgCal: weekAvg, daysRecorded: loggedDays.length, status: weekAvg <= targetCal ? 'Đạt mục tiêu' : 'Vượt calo' };
             setSavedWeeklyLogs(prev => [record, ...prev.filter(l => l.key !== today)]);
@@ -907,7 +907,7 @@
                                         <p className="text-[10px] text-slate-500 font-bold">Hiển thị chuẩn lượng calo từng ngày</p>
                                     </div>
                                     <span className="text-[10px] bg-emerald-100 text-emerald-800 font-black px-2.5 py-1 rounded-full">
-                                        TB: {weekAvg} kcal/ngày
+                                        {loggedDays.length > 0 ? `TB: ${weekAvg} kcal/ngày` : 'Chưa có dữ liệu'}
                                     </span>
                                 </div>
 
@@ -919,32 +919,70 @@
                                             <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-rose-400"></i>Vượt</span>
                                         </div>
                                     </div>
-                                    <div className="relative h-44">
-                                        <div className="absolute inset-x-0 border-t-2 border-dashed border-emerald-500 z-10 pointer-events-none" style={{ bottom: `${Math.min(targetCal / chartMax * 100, 100)}%` }}></div>
-                                        <div className="grid grid-cols-7 gap-2 h-full items-end">
-                                            {weeklyHistory.map((d, i) => (
-                                                <div key={i} className="h-full flex flex-col justify-end items-center">
-                                                    <span className={`text-[10px] font-black mb-1 ${d.calories > targetCal ? 'text-rose-600' : 'text-emerald-700'}`}>{d.calories || ''}</span>
-                                                    <div style={{ height: `${d.calories / chartMax * 100}%` }} className={`w-full rounded-t-lg transition-all duration-500 ${d.calories > targetCal ? 'bg-rose-400' : 'bg-emerald-500'} ${i === 6 ? 'shadow-md' : ''}`}></div>
-                                                </div>
-                                            ))}
+                                    {loggedDays.length === 0 ? (
+                                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center">
+                                            <div className="text-3xl" aria-hidden="true">📊</div>
+                                            <p className="mt-2 text-sm font-bold text-slate-700">
+                                                Chưa có dữ liệu trong 7 ngày gần nhất
+                                            </p>
+                                            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                                                Ghi lại món ăn để xem biểu đồ calo và mức trung bình của bạn.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveTab('home')}
+                                                className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+                                            >
+                                                📸 Đến trang quét món ăn
+                                            </button>
                                         </div>
-                                    </div>
-                                    <div className="grid grid-cols-7 gap-2 text-center">
-                                        {weeklyHistory.map((d, i) => <span key={i} className={`text-[10px] font-extrabold ${i === 6 ? 'text-emerald-700' : 'text-slate-500'}`}>{d.day}</span>)}
-                                    </div>
+                                    ) : (
+                                        <>
+                                            <div className="relative h-44">
+                                                <div
+                                                    className="absolute inset-x-0 z-10 border-t-2 border-dashed border-emerald-500 pointer-events-none"
+                                                    style={{ bottom: `${Math.min(targetCal / chartMax * 100, 100)}%` }}
+                                                ></div>
+
+                                                <div className="grid h-full grid-cols-7 items-end gap-2">
+                                                    {weeklyHistory.map((d, i) => (
+                                                        <div key={i} className="flex h-full flex-col items-center justify-end">
+                                                            <span className={`mb-1 text-[10px] font-black ${d.calories > targetCal ? 'text-rose-600' : 'text-emerald-700'}`}>
+                                                                {d.calories || ''}
+                                                            </span>
+                                                            <div
+                                                                style={{ height: `${d.calories / chartMax * 100}%` }}
+                                                                className={`w-full rounded-t-lg transition-all duration-500 ${d.calories > targetCal ? 'bg-rose-400' : 'bg-emerald-500'}`}
+                                                            ></div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-7 gap-2 text-center">
+                                                {weeklyHistory.map((d, i) => (
+                                                    <span
+                                                        key={i}
+                                                        className={`text-[10px] font-extrabold ${i === 6 ? 'text-emerald-700' : 'text-slate-500'}`}
+                                                    >
+                                                        {d.day}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
 
                                 <div className="pt-2">
                                     <button 
-                                        onClick={handleSaveWeekToDatabase} disabled={!loggedDays.length}
+                                        onClick={handleSaveWeekToDevice} disabled={!loggedDays.length}
                                         className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer"
                                     >
-                                        <span>💾 LƯU BÁO CÁO 7 NGÀY VÀO NHẬT KÝ DATABASE</span>
+                                        <span>💾 LƯU BÁO CÁO 7 NGÀY TRÊN THIẾT BỊ</span>
                                     </button>
                                     {isWeeklySaved && (
                                         <p className="text-[10px] text-emerald-600 font-bold text-center mt-1">
-                                            ✓ Đã lưu thành công báo cáo tuần này vào Cơ sở dữ liệu!
+                                            ✓ Đã lưu báo cáo tuần này trên thiết bị.
                                         </p>
                                     )}
                                 </div>
@@ -952,8 +990,8 @@
 
                             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
                                 <div className="border-b border-slate-100 pb-2">
-                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">📂 Lịch Sử Các Tuần Đã Lưu Trong Database</h3>
-                                    <p className="text-[10px] text-slate-500 font-bold">Danh sách báo cáo 7 ngày đã được ghi nhận</p>
+                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">📂 Lịch Sử Báo Cáo Đã Lưu Trên Thiết Bị</h3>
+                                    <p className="text-[10px] text-slate-500 font-bold">Danh sách báo cáo 7 ngày được lưu trên thiết bị này</p>
                                 </div>
 
                                 <div className="space-y-2">
