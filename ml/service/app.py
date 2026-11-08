@@ -5,16 +5,20 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", Path(__file__).parent.parent / "models"))
 MIN_CONF = float(os.environ.get("MIN_CONF", 0.5))  # below this, "chac_chan" is false
+MAX_BYTES = 8 * 1024 * 1024  # public deploy: reject huge uploads
 
 sess = ort.InferenceSession(str(MODEL_DIR / "food_classifier.onnx"), providers=["CPUExecutionProvider"])
 CLASSES = json.loads((MODEL_DIR / "classes.json").read_text())["classes"]
 MEAN, STD = np.array([0.485, 0.456, 0.406], "f4"), np.array([0.229, 0.224, 0.225], "f4")
 
 app = FastAPI(title="Food recognition service")
+# shortcut: allow any origin so the demo frontend can call us, restrict to the real site when deployed
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 def preprocess(img: Image.Image) -> np.ndarray:
@@ -35,8 +39,11 @@ def health():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    data = await file.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise HTTPException(413, "image too large (max 8 MB)")
     try:
-        img = Image.open(io.BytesIO(await file.read())).convert("RGB")
+        img = Image.open(io.BytesIO(data)).convert("RGB")
     except Exception:
         raise HTTPException(400, "not a valid image")
     logits = sess.run(None, {"image": preprocess(img)})[0][0]
