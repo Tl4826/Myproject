@@ -945,17 +945,37 @@
                                                 ></div>
 
                                                 <div className="grid h-full grid-cols-7 items-end gap-2">
-                                                    {weeklyHistory.map((d, i) => (
-                                                        <div key={i} className="flex h-full flex-col items-center justify-end">
-                                                            <span className={`mb-1 text-[10px] font-black ${d.calories > targetCal ? 'text-rose-600' : 'text-emerald-700'}`}>
-                                                                {d.calories || ''}
-                                                            </span>
-                                                            <div
-                                                                style={{ height: `${d.calories / chartMax * 100}%` }}
-                                                                className={`w-full rounded-t-lg transition-all duration-500 ${d.calories > targetCal ? 'bg-rose-400' : 'bg-emerald-500'}`}
-                                                            ></div>
-                                                        </div>
-                                                    ))}
+                                                    {weeklyHistory.map((d, i) => {
+                                                        const hasData = d.calories > 0;
+                                                        const barHeight = hasData ? `${Math.max((d.calories / chartMax) * 100, 8)}%` : '8%';
+                                                        return (
+                                                            <div key={i} className="flex h-full flex-col items-center justify-end">
+                                                                <span
+                                                                    className={`mb-1 text-[10px] font-black ${
+                                                                        hasData
+                                                                            ? d.calories > targetCal
+                                                                                ? 'text-rose-600'
+                                                                                : 'text-emerald-700'
+                                                                            : 'text-slate-400'
+                                                                    }`}
+                                                                >
+                                                                    {hasData ? d.calories : '—'}
+                                                                </span>
+
+                                                                <div
+                                                                    title={hasData ? `${d.day}: ${d.calories} kcal` : `${d.day}: chưa có dữ liệu`}
+                                                                    style={{ height: barHeight }}
+                                                                    className={`w-full rounded-t-lg transition-all duration-500 ${
+                                                                        !hasData
+                                                                            ? 'bg-slate-200'
+                                                                            : d.calories > targetCal
+                                                                                ? 'bg-rose-400'
+                                                                                : 'bg-emerald-500'
+                                                                    }`}
+                                                                ></div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
 
@@ -968,6 +988,20 @@
                                                         {d.day}
                                                     </span>
                                                 ))}
+                                            </div>
+                                            <div className="grid grid-cols-7 gap-1 text-center">
+                                                {weeklyHistory.map((d, i) => {
+                                                    const status = d.calories === 0
+                                                        ? { label: 'Chưa ghi', className: 'text-slate-400' }
+                                                        : d.calories > targetCal
+                                                            ? { label: 'Vượt mục tiêu', className: 'text-rose-600' }
+                                                            : { label: 'Đã ghi', className: 'text-emerald-600' };
+                                                    return (
+                                                        <span key={i} className={`text-[8px] font-bold leading-tight ${status.className}`}>
+                                                            {status.label}
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                         </>
                                     )}
