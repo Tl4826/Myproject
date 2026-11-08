@@ -35,8 +35,8 @@
     const { useState, useEffect } = React;
 
     // ===== CẤU HÌNH =====
-    const USE_DEMO = true;                     // true: demo 1 món (chưa có backend) | false: gọi API /predict của Thanh
-    const API_URL = 'http://localhost:8000';   // API /predict của Thanh
+    const USE_DEMO = false;                     // true: demo 1 món (chưa có backend) | false: gọi API /predict của Thanh
+    const API_URL = 'https://myproject-z586.onrender.com';   // API /predict của Thanh
     const UPLOAD_FIELD = 'file';               // tên field ảnh trong FastAPI (đổi nếu khác)
     const GOOGLE_CLIENT_ID = '';               // dán Google Client ID vào đây
     const FACEBOOK_APP_ID = '';                // dán Facebook App ID vào đây
@@ -88,6 +88,72 @@
         i.onerror = () => res(null);
         i.src = URL.createObjectURL(f);
     });
+
+    const GOALS = [['lose', '📉 Giảm cân'], ['gain_muscle', '🏋️ Tăng cơ'], ['gain', '📈 Tăng cân'], ['keep', '⚖️ Giữ cân']];
+    const suggestGoal = v => v < 18.5 ? 'gain' : v < 23 ? 'keep' : 'lose';
+    const GOAL_LABEL = Object.fromEntries(GOALS);
+    // SỐ ƯỚC LƯỢNG / 1 khẩu phần, dùng để gợi ý món -> thay bằng Bảng Thành Phần Dinh Dưỡng Việt Nam
+    const VN_DISHES = [
+        { name: 'Phở bò', calories: 450, protein: 28, carbs: 55, fat: 12 },
+        { name: 'Cơm tấm sườn', calories: 520, protein: 32, carbs: 58, fat: 16 },
+        { name: 'Bún chả', calories: 600, protein: 30, carbs: 70, fat: 20 },
+        { name: 'Bún bò Huế', calories: 550, protein: 30, carbs: 62, fat: 18 },
+        { name: 'Hủ tiếu', calories: 450, protein: 22, carbs: 62, fat: 12 },
+        { name: 'Gỏi cuốn (2 cuốn)', calories: 160, protein: 9, carbs: 22, fat: 4 },
+        { name: 'Canh chua cá + cơm', calories: 420, protein: 30, carbs: 52, fat: 9 },
+        { name: 'Cá kho + rau luộc + cơm', calories: 500, protein: 32, carbs: 58, fat: 15 },
+        { name: 'Cháo gà', calories: 320, protein: 22, carbs: 42, fat: 6 },
+        { name: 'Cơm ức gà luộc + rau', calories: 420, protein: 38, carbs: 48, fat: 6 },
+        { name: 'Bánh mì trứng', calories: 350, protein: 14, carbs: 42, fat: 13 }
+    ];
+    const suggestDishes = (goal, remaining, targetCal) => {
+        const score = { lose: d => -d.protein / d.calories, gain_muscle: d => -d.protein, gain: d => -d.calories, keep: d => Math.abs(d.calories - targetCal / 3) }[goal];
+        return VN_DISHES.filter(d => d.calories <= remaining).sort((x, y) => score(x) - score(y)).slice(0, 3);
+    };
+    // Lộ trình: p = hồ sơ, pl = {targetWeight, weeks} hoặc null. 1 kg ≈ 7700 kcal
+    const computePlan = (p, pl) => {
+        const bmr = p.gender === 'male' ? 10 * p.weight + 6.25 * p.height - 5 * p.age + 5 : 10 * p.weight + 6.25 * p.height - 5 * p.age - 161;
+        const tdee = Math.round(bmr * p.activity);
+        const floor = p.gender === 'male' ? 1500 : 1200;
+        const dir = p.goal === 'lose' ? -1 : p.goal === 'keep' ? 0 : 1;
+        let daily = { lose: -400, gain_muscle: 300, gain: 500, keep: 0 }[p.goal];
+        let weekly = 0, weeks = 0, minWeeks = 0, capped = false;
+        if (dir && pl && (pl.targetWeight - p.weight) * dir > 0) {
+            const diff = pl.targetWeight - p.weight;
+            const maxRate = dir < 0 ? Math.min(1, 0.01 * p.weight) : (p.goal === 'gain_muscle' ? 0.35 : 0.5); // kg/tuần an toàn
+            minWeeks = Math.ceil(Math.abs(diff) / maxRate);
+            weeks = Math.max(pl.weeks, minWeeks);
+            capped = weeks > pl.weeks;
+            weekly = diff / weeks;
+            daily = Math.round(weekly * 7700 / 7);
+        }
+        let targetCal = Math.round(tdee + daily), floored = false;
+        if (targetCal < floor) { targetCal = floor; floored = true; }
+        const protein = Math.round(p.weight * { lose: 1.8, gain_muscle: 2.0, gain: 1.6, keep: 1.4 }[p.goal]);
+        const fat = Math.round(targetCal * 0.25 / 9);
+        const carbs = Math.max(Math.round((targetCal - protein * 4 - fat * 9) / 4), 0);
+        return { tdee, targetCal, daily: targetCal - tdee, weekly, weeks, minWeeks, capped, floored, floor, protein, fat, carbs, water: (p.weight * 0.035).toFixed(1), glasses: Math.ceil(p.weight * 35 / 250) };
+    };
+    const workoutToday = p => {
+        const n = p.activity >= 1.725 ? 5 : p.activity >= 1.55 ? 4 : 3;
+        const days = { 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6] }[n]; // getDay(): 0 = CN
+        const idx = days.indexOf(new Date().getDay());
+        const starter = p.activity <= 1.2 ? ' Mới bắt đầu thì làm 15–20 phút rồi tăng dần.' : '';
+        if (idx < 0) return { title: 'Ngày nghỉ chủ động', text: 'Đi bộ nhẹ 20–30 phút hoặc giãn cơ 10–15 phút. Cơ bắp phục hồi và phát triển trong ngày nghỉ.' };
+        if (p.goal === 'lose') return idx % 2 === 0
+            ? { title: 'Cardio nhẹ – vừa', text: '30–45 phút đi bộ nhanh, đạp xe hoặc bơi, nhịp tim vừa phải, vẫn nói chuyện được.' + starter }
+            : { title: 'Tập tạ toàn thân', text: '30–40 phút các bài cơ bản (squat, đẩy, kéo) để giữ cơ khi giảm cân.' + starter };
+        if (p.goal === 'gain_muscle') return { title: idx % 2 === 0 ? 'Tập thân trên' : 'Tập thân dưới', text: '45–60 phút tập kháng lực, 3–4 bài chính × 3–4 hiệp, tăng dần mức tạ. Ăn đủ đạm sau buổi tập.' + starter };
+        if (p.goal === 'gain') return { title: 'Tập tạ toàn thân', text: '40–50 phút ưu tiên bài compound (squat, đẩy ngực, kéo xà/kéo cáp), hạn chế cardio quá nhiều.' + starter };
+        return { title: 'Cardio hoặc thể thao', text: '30–45 phút chạy bộ, bơi, cầu lông hoặc môn bạn thích để duy trì sức khỏe.' + starter };
+    };
+    // BMI theo chuẩn WHO khu vực châu Á - Thái Bình Dương (phù hợp người Việt)
+    const bmiInfo = (w, h) => {
+        if (!(w > 0) || !(h > 0)) return null;
+        const v = w / Math.pow(h / 100, 2);
+        const [label, color] = v < 18.5 ? ['Thiếu cân', 'text-sky-600'] : v < 23 ? ['Bình thường', 'text-emerald-600'] : v < 25 ? ['Thừa cân', 'text-amber-600'] : ['Béo phì', 'text-rose-600'];
+        return { value: Math.round(v * 10) / 10, label, color };
+    };
 
     const TEAM_MEMBERS = [
         {
@@ -188,7 +254,6 @@
         const remainingCal = Math.max(targetCal - totalCal, 0);
         const progress = Math.min(Math.round((totalCal / targetCal) * 100), 100);
 
-        const [goalType, setGoalType] = useState('lose');
         const [isAuthOpen, setIsAuthOpen] = useState(false);
         const [showPw, setShowPw] = useState(false);
         const [toast, setToast] = useState('');
@@ -202,13 +267,28 @@
         const [isGuideOpen, setIsGuideOpen] = useState(false);
         const [openFaqId, setOpenFaqId] = useState(1);
 
-        const [calcWeight, setCalcWeight] = useState(65);
-        const [calcHeight, setCalcHeight] = useState(170);
-        const [calcAge, setCalcAge] = useState(25);
-        const [calcGender, setCalcGender] = useState('male');
-        const [calcActivity, setCalcActivity] = useState(1.375);
-        const [isCalculated, setIsCalculated] = useState(false);
-        const [calcResult, setCalcResult] = useState(null);
+
+        // Khung hỏi thông tin lần đầu đăng ký
+        const [isOnboardOpen, setIsOnboardOpen] = useState(false);
+        const [obEmail, setObEmail] = useState('');
+        const [obName, setObName] = useState('');
+        const [obAge, setObAge] = useState('');
+        const [obGender, setObGender] = useState('male');
+        const [obHeight, setObHeight] = useState('');
+        const [obWeight, setObWeight] = useState('');
+        const [obActivity, setObActivity] = useState(1.375);
+        const [obGoal, setObGoal] = useState(''); // rỗng = dùng gợi ý theo BMI
+
+        // Hồ sơ + lộ trình
+        const [profile, setProfile] = useState(() => load('nv_profile', null));
+        const [plan, setPlan] = useState(() => load('nv_plan', null)); // {targetWeight, weeks, startDate, startWeight}
+        const [planTw, setPlanTw] = useState(() => { const pl = load('nv_plan', null); return pl ? String(pl.targetWeight) : ''; });
+        const [planWk, setPlanWk] = useState(() => { const pl = load('nv_plan', null); return pl ? String(pl.weeks) : ''; });
+        const [planErr, setPlanErr] = useState('');
+        const [editPlan, setEditPlan] = useState(false);
+        const [water, setWater] = useState(() => { const w = load('nv_water', null); return w && w.date === dayKey(new Date()) ? w.n : 0; });
+        const [workoutDone, setWorkoutDone] = useState(() => { const w = load('nv_workout', null); return !!(w && w.date === dayKey(new Date()) && w.done); });
+        const [obErr, setObErr] = useState('');
 
         const weeklyHistory = Array.from({ length: 7 }, (_, i) => {
             const d = new Date(); d.setDate(d.getDate() - (6 - i));
@@ -230,6 +310,24 @@
                 useEffect(() => {
             try { localStorage.setItem('nv_meals', JSON.stringify(meals)); localStorage.setItem('nv_target', targetCal); localStorage.setItem('nv_weeks', JSON.stringify(savedWeeklyLogs)); } catch {}
         }, [meals, targetCal, savedWeeklyLogs]);
+
+        const rp = profile ? computePlan(profile, plan) : null;
+        const pbmi = profile ? bmiInfo(profile.weight, profile.height) : null;
+        const todayWorkout = profile ? workoutToday(profile) : null;
+        const dishes = rp ? suggestDishes(profile.goal, Math.max(rp.targetCal - totalCal, 0), rp.targetCal) : [];
+        const daysIn = plan ? Math.floor((new Date(today) - new Date(plan.startDate)) / 864e5) : 0;
+        const totalDays = rp && plan ? rp.weeks * 7 : 0;
+        const planPct = totalDays ? Math.min(100, Math.round((daysIn + 1) / totalDays * 100)) : 0;
+        const expectedW = totalDays ? (plan.startWeight + (plan.targetWeight - plan.startWeight) * Math.min(daysIn / totalDays, 1)).toFixed(1) : null;
+
+        useEffect(() => { if (rp) setTargetCal(rp.targetCal); }, [rp && rp.targetCal]);
+        useEffect(() => {
+            try {
+                localStorage.setItem('nv_water', JSON.stringify({ date: today, n: water }));
+                localStorage.setItem('nv_workout', JSON.stringify({ date: today, done: workoutDone }));
+                if (plan) localStorage.setItem('nv_plan', JSON.stringify(plan)); else localStorage.removeItem('nv_plan');
+            } catch {}
+        }, [water, workoutDone, plan]);
 
         useEffect(() => {
             const h = e => { if (e.key === 'Escape') { setIsAuthOpen(false); setIsTeamOpen(false); } };
@@ -266,6 +364,8 @@
             setIsLoggedIn(true); setUserEmail(u.name || u.email || '');
             setIsAuthOpen(false); notify(msg);
             try { (rememberMe ? localStorage : sessionStorage).setItem('nv_user', JSON.stringify(u)); } catch {} // không lưu mật khẩu/token
+            const prof = load('nv_profile', null);
+            if (!prof || prof.email !== u.email) { setObEmail(u.email || ''); setObName(u.name || ''); setObErr(''); setObGoal(''); setObAge(''); setObHeight(''); setObWeight(''); setIsOnboardOpen(true); }
         };
         const logout = () => {
             try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
@@ -281,41 +381,42 @@
             FB.login(r => { if (r.authResponse) FB.api('/me', { fields: 'name,email' }, u => login({ email: u.email || u.name, name: u.name, provider: 'facebook' })); }, { scope: 'public_profile,email' });
         };
 
-        const handleCalculateHealth = () => {
-            let bmrVal = calcGender === 'male'
-                ? 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge + 5
-                : 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge - 161;
-            const tdeeVal = Math.round(bmrVal * calcActivity);
+        const openProfile = () => {
+            const u = getUser();
+            setObEmail(profile?.email || u?.email || ''); setObName(profile?.name || u?.name || '');
+            setObAge(profile ? String(profile.age) : ''); setObGender(profile?.gender || 'male');
+            setObHeight(profile ? String(profile.height) : ''); setObWeight(profile ? String(profile.weight) : '');
+            setObActivity(profile?.activity ?? 1.375); setObGoal(profile?.goal || ''); setObErr(''); setIsOnboardOpen(true);
+        };
 
-            let targetCalVal = tdeeVal;
-            let goalText = 'Duy trì cân nặng ổn định trong tháng';
-            switch(goalType) {
-                case 'lose':
-                    targetCalVal = Math.max(tdeeVal - 400, 1200);
-                    goalText = 'Lộ trình giảm 1.5 - 2kg / tháng an toàn';
-                    break;
-                case 'gain_muscle':
-                    targetCalVal = tdeeVal + 300;
-                    goalText = 'Lộ trình săn chắc & tăng cơ tháng này';
-                    break;
-                case 'gain':
-                    targetCalVal = tdeeVal + 500;
-                    goalText = 'Lộ trình tăng 1.5 - 2kg / tháng';
-                    break;
-                default:
-                    targetCalVal = tdeeVal;
-                    goalText = 'Duy trì sức khỏe & cân nặng trong tháng';
-            }
+        const saveProfile = (e) => {
+            e.preventDefault();
+            const a = Number(obAge), h = Number(obHeight), w = Number(obWeight);
+            if (!obName.trim()) return setObErr('Vui lòng nhập họ tên');
+            if (!(a >= 10 && a <= 100)) return setObErr('Tuổi phải từ 10 đến 100');
+            if (!(h >= 100 && h <= 250)) return setObErr('Chiều cao phải từ 100 đến 250 cm');
+            if (!(w >= 20 && w <= 300)) return setObErr('Cân nặng phải từ 20 đến 300 kg');
+            const b = bmiInfo(w, h);
+            const goal = obGoal || suggestGoal(b.value);
+            const name = obName.trim();
+            const prof = { email: obEmail, name, age: a, gender: obGender, height: h, weight: w, bmi: b.value, activity: Number(obActivity), goal };
+            try { localStorage.setItem('nv_profile', JSON.stringify(prof)); } catch {}
+            try { const st = localStorage.getItem('nv_user') ? localStorage : sessionStorage; const u = JSON.parse(st.getItem('nv_user')); if (u) st.setItem('nv_user', JSON.stringify({ ...u, name })); } catch {}
+            if (!profile || profile.email !== obEmail || profile.weight !== w || profile.goal !== goal) { setPlan(null); setPlanTw(''); setPlanWk(''); setEditPlan(false); setPlanErr(''); } // đổi cân nặng/mục tiêu -> lập lại lộ trình
+            setProfile(prof); setUserEmail(name);
+            setIsOnboardOpen(false); setObErr('');
+            notify(`BMI ${b.value} · ${b.label}`);
+        };
 
-            const waterVal = (calcWeight * 0.035).toFixed(1);
-
-            setTargetCal(targetCalVal);
-            setCalcResult({
-                tdee: targetCalVal,
-                water: waterVal,
-                goalText: goalText
-            });
-            setIsCalculated(true);
+        const savePlan = () => {
+            const tw = Number(planTw), wk = Number(planWk), w = profile.weight, dir = profile.goal === 'lose' ? -1 : 1;
+            if (!(tw >= 20 && tw <= 300)) return setPlanErr('Cân nặng mục tiêu phải từ 20 đến 300 kg');
+            if (!Number.isInteger(wk) || wk < 1 || wk > 104) return setPlanErr('Số tuần phải là số nguyên từ 1 đến 104');
+            if ((tw - w) * dir <= 0) return setPlanErr(`Với mục tiêu ${GOAL_LABEL[profile.goal]}, cân nặng mục tiêu phải ${dir < 0 ? 'thấp' : 'cao'} hơn hiện tại (${w} kg)`);
+            const tb = bmiInfo(tw, profile.height);
+            if (dir < 0 && tb.value < 18.5) return setPlanErr(`Với ${tw} kg, BMI chỉ còn ${tb.value} (thiếu cân). Hãy chọn mức cao hơn.`);
+            setPlan({ targetWeight: tw, weeks: wk, startDate: today, startWeight: w });
+            setPlanErr(''); setEditPlan(false); notify('Đã lập lộ trình');
         };
 
         const handleFile = async (e) => {
@@ -390,8 +491,12 @@
                     <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
                         <div className="flex items-center justify-between w-full sm:w-auto">
                             <div className="flex items-center space-x-2">
-                                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-lg shadow-sm">
-                                    N
+                                <div className="w-9 h-9 overflow-hidden rounded-xl bg-emerald-600 shadow-sm">
+                                    <img
+                                        src="https://i.pinimg.com/originals/ab/9e/c8/ab9ec8e1b0a77576fa6f5f377b2038a3.jpg"
+                                        alt="Logo NutriVN"
+                                        className="h-full w-full object-cover"
+                                    />
                                 </div>
                                 <div>
                                     <h1 className="font-extrabold text-slate-900 text-base leading-tight">NutriVN</h1>
@@ -535,78 +640,108 @@
                                 </div>
                             </section>
 
-                            {/* Health & BMR Monthly Calculator Section */}
+                            {/* Lộ trình hôm nay */}
                             <section className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
-                                <div className="border-b pb-2">
-                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase">🧮 Máy Tính Dinh Dưỡng & Nước Uống Theo Tháng</h3>
-                                    <p className="text-[10px] text-slate-500 font-bold">Tính chỉ số BMR/TDEE dựa trên thông số sinh học</p>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-500">Mục tiêu theo tháng:</label>
-                                    <div className="grid grid-cols-2 gap-1.5 text-xs font-bold">
-                                        <button onClick={() => setGoalType('lose')} className={`p-2 rounded-xl border ${goalType === 'lose' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>📉 Giảm cân</button>
-                                        <button onClick={() => setGoalType('gain_muscle')} className={`p-2 rounded-xl border ${goalType === 'gain_muscle' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>🏋️ Tăng cơ</button>
-                                        <button onClick={() => setGoalType('gain')} className={`p-2 rounded-xl border ${goalType === 'gain' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>📈 Tăng cân</button>
-                                        <button onClick={() => setGoalType('keep')} className={`p-2 rounded-xl border ${goalType === 'keep' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>⚖️ Giữ cân</button>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3 text-xs">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-500">Cân nặng (kg)</label>
-                                            <input type="number" value={calcWeight} onChange={e => { setCalcWeight(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-500">Chiều cao (cm)</label>
-                                            <input type="number" value={calcHeight} onChange={e => { setCalcHeight(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-500">Độ tuổi</label>
-                                            <input type="number" value={calcAge} onChange={e => { setCalcAge(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold" />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-slate-500">Giới tính</label>
-                                            <select value={calcGender} onChange={e => { setCalcGender(e.target.value); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
-                                                <option value="male">Nam</option>
-                                                <option value="female">Nữ</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                <div className="border-b pb-2 flex items-start justify-between gap-2">
                                     <div>
-                                        <label className="text-[10px] font-bold text-slate-500">Mức vận động</label>
-                                        <select value={calcActivity} onChange={e => { setCalcActivity(Number(e.target.value)); setIsCalculated(false); }} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold">
-                                            <option value={1.2}>Ít vận động</option>
-                                            <option value={1.375}>Nhẹ (1-3 buổi/tuần)</option>
-                                            <option value={1.55}>Vừa (3-5 buổi/tuần)</option>
-                                            <option value={1.725}>Nhiều (6-7 buổi/tuần)</option>
-                                        </select>
+                                        <h3 className="font-extrabold text-slate-900 text-xs uppercase">🗺️ Lộ Trình Của Bạn</h3>
+                                        <p className="text-[10px] text-slate-500 font-bold">{profile ? `${GOAL_LABEL[profile.goal]} · BMI ${pbmi.value} (${pbmi.label})` : 'Chưa có thông tin cơ thể'}</p>
                                     </div>
-                                    <button onClick={handleCalculateHealth} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition-all cursor-pointer">
-                                        ⚡ XÁC NHẬN & TÍNH CHỈ SỐ THEO THÁNG
-                                    </button>
-                                    {isCalculated && calcResult ? (
-                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
-                                            <div className="grid grid-cols-2 gap-2 text-center">
-                                                <div className="bg-white p-2 rounded-xl border border-emerald-100">
-                                                    <span className="text-[10px] text-slate-500 font-bold block">Nhu Cầu Calo/Ngày</span>
-                                                    <span className="text-base font-black text-emerald-700">{calcResult.tdee} kcal</span>
+                                    <button onClick={openProfile} className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 shrink-0">✏️ {profile ? 'Sửa thông tin' : 'Nhập thông tin'}</button>
+                                </div>
+
+                                {!profile ? (
+                                    <p className="text-[11px] text-slate-500 font-bold text-center py-3">Nhập tuổi, chiều cao, cân nặng và mục tiêu để nhận lộ trình calo, nước uống, vận động và món ăn phù hợp mỗi ngày.</p>
+                                ) : (<>
+                                    {profile.goal === 'keep' ? (
+                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-[11px] font-bold text-emerald-800">⚖️ Giữ cân quanh {profile.weight} kg: ăn khoảng {rp.targetCal} kcal/ngày và cân lại mỗi tuần để theo dõi.</div>
+                                    ) : (!plan || editPlan) ? (
+                                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                                            <div className="text-[10px] font-bold text-slate-500">Đặt đích đến cho lộ trình {GOAL_LABEL[profile.goal]} (hiện tại {profile.weight} kg)</div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500">Cân nặng mục tiêu (kg)</label>
+                                                    <input type="number" value={planTw} onChange={e => setPlanTw(e.target.value)} placeholder={String(Math.round(profile.weight * (profile.goal === 'lose' ? 0.95 : 1.05)))} className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold" />
                                                 </div>
-                                                <div className="bg-white p-2 rounded-xl border border-emerald-100">
-                                                    <span className="text-[10px] text-slate-500 font-bold block">Nước Cần Uống</span>
-                                                    <span className="text-base font-black text-sky-600">{calcResult.water} Lít/ngày</span>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500">Trong bao nhiêu tuần</label>
+                                                    <input type="number" value={planWk} onChange={e => setPlanWk(e.target.value)} placeholder="8" className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold" />
                                                 </div>
                                             </div>
-                                            <p className="text-[10px] font-bold text-emerald-800 text-center">💡 {calcResult.goalText}</p>
-                                            <p className="text-[10px] font-black text-emerald-700 text-center">✓ Đã cập nhật mục tiêu calo hôm nay ở mục Ngân Sách Calo</p>
+                                            {planErr && <p className="text-[11px] font-bold text-rose-600">{planErr}</p>}
+                                            <div className="flex gap-2">
+                                                <button onClick={savePlan} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">⚡ LẬP LỘ TRÌNH</button>
+                                                {plan && <button onClick={() => { setEditPlan(false); setPlanErr(''); setPlanTw(String(plan.targetWeight)); setPlanWk(String(plan.weeks)); }} className="px-3 py-2.5 text-xs font-bold text-slate-500">Huỷ</button>}
+                                            </div>
+                                            {!plan && <p className="text-[10px] text-slate-400 font-bold italic">Chưa lập lộ trình: calo đang tính theo mức mặc định của mục tiêu.</p>}
                                         </div>
                                     ) : (
-                                        <p className="text-[10px] text-slate-400 font-bold text-center italic">👉 Nhập thông số và bấm "XÁC NHẬN" để xem nhu cầu calo & nước uống</p>
+                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1.5">
+                                            <div className="flex justify-between items-center">
+                                                <div className="text-xs font-black text-emerald-800">{plan.startWeight} → {plan.targetWeight} kg · {rp.weeks} tuần</div>
+                                                <button onClick={() => setEditPlan(true)} className="text-[10px] font-black text-emerald-700 underline">Chỉnh</button>
+                                            </div>
+                                            <div className="text-[10px] font-bold text-emerald-700">Tốc độ {rp.weekly > 0 ? '+' : ''}{rp.weekly.toFixed(2)} kg/tuần · Ngày {Math.min(daysIn + 1, totalDays)}/{totalDays}</div>
+                                            <div className="h-2 bg-white rounded-full overflow-hidden border border-emerald-100"><div className="h-full bg-emerald-500" style={{ width: planPct + '%' }} /></div>
+                                            <div className="text-[10px] font-bold text-slate-600">Cân nặng dự kiến hôm nay: ~{expectedW} kg</div>
+                                            {rp.capped && <p className="text-[10px] font-bold text-amber-600">⚠️ {plan.weeks} tuần là hơi nhanh. Mình đặt tối thiểu {rp.minWeeks} tuần để an toàn cho sức khỏe.</p>}
+                                            {rp.floored && <p className="text-[10px] font-bold text-amber-600">⚠️ Calo được giữ ở mức tối thiểu an toàn {rp.floor} kcal/ngày nên có thể chậm hơn dự kiến.</p>}
+                                            {daysIn >= totalDays && <p className="text-[10px] font-black text-emerald-800">🏁 Lộ trình đã kết thúc. Bấm "Sửa thông tin" để cập nhật cân nặng và lập lộ trình mới.</p>}
+                                        </div>
                                     )}
-                                </div>
+
+                                    <div className="text-[11px] font-black text-slate-900 pt-1">✅ Việc cần làm hôm nay</div>
+
+                                    <div className="p-3 rounded-2xl border border-slate-200 space-y-2">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="font-extrabold text-slate-900">🍽️ Ăn đủ calo & macro</span>
+                                            <span className="font-black text-emerald-700">{totalCal}/{rp.targetCal} kcal</span>
+                                        </div>
+                                        {[['Protein', 'protein', rp.protein, 'bg-sky-500'], ['Carbs', 'carbs', rp.carbs, 'bg-amber-500'], ['Fat', 'fat', rp.fat, 'bg-rose-500']].map(([n, k, t, c]) => (
+                                            <div key={k}>
+                                                <div className="flex justify-between text-[10px] font-bold text-slate-500"><span>{n}</span><span>{sum(k)}/{t} g</span></div>
+                                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className={'h-full ' + c} style={{ width: (t ? Math.min(100, Math.round(sum(k) / t * 100)) : 0) + '%' }} /></div>
+                                            </div>
+                                        ))}
+                                        <p className="text-[10px] text-slate-400 font-bold">{rp.daily === 0 ? 'Mức duy trì' : (rp.daily > 0 ? '+' : '') + rp.daily + ' kcal so với nhu cầu duy trì'} ({rp.tdee} kcal)</p>
+                                    </div>
+
+                                    <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${water >= rp.glasses ? 'border-sky-400 bg-sky-50' : 'border-sky-200 bg-sky-50/50'}`}>
+                                        <div>
+                                            <div className="text-xs font-extrabold text-slate-900">💧 Uống nước {water >= rp.glasses && '✅'}</div>
+                                            <div className="text-[10px] font-bold text-slate-500">Mục tiêu {rp.water} lít ≈ {rp.glasses} ly (250 ml)</div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => setWater(Math.max(0, water - 1))} aria-label="Bớt 1 ly" className="w-8 h-8 rounded-full bg-white border border-sky-200 font-black text-sky-700">−</button>
+                                            <span className="text-sm font-black text-sky-700 w-12 text-center">{water}/{rp.glasses}</span>
+                                            <button onClick={() => setWater(water + 1)} aria-label="Thêm 1 ly" className="w-8 h-8 rounded-full bg-white border border-sky-200 font-black text-sky-700">+</button>
+                                        </div>
+                                    </div>
+
+                                    <div className={`p-3 rounded-2xl border space-y-1 ${workoutDone ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'}`}>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-extrabold text-slate-900">🏃 {todayWorkout.title}</span>
+                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 cursor-pointer">
+                                                <input type="checkbox" checked={workoutDone} onChange={e => setWorkoutDone(e.target.checked)} className="w-4 h-4 accent-emerald-600" />Đã xong
+                                            </label>
+                                        </div>
+                                        <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{todayWorkout.text}</p>
+                                    </div>
+
+                                    <div className="p-3 rounded-2xl border border-slate-200 space-y-2">
+                                        <div className="text-xs font-extrabold text-slate-900">🥗 Gợi ý món ăn Việt phù hợp</div>
+                                        {dishes.length ? dishes.map(d => (
+                                            <div key={d.name} className="flex items-center justify-between gap-2 bg-slate-50 rounded-xl px-3 py-2">
+                                                <div>
+                                                    <div className="text-xs font-extrabold text-slate-800">{d.name}</div>
+                                                    <div className="text-[10px] font-bold text-slate-500">{d.calories} kcal · P{d.protein} C{d.carbs} F{d.fat}</div>
+                                                </div>
+                                                <button onClick={() => { addMeal(d); notify('Đã thêm vào nhật ký'); }} className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-2.5 py-1.5 shrink-0">+ Thêm</button>
+                                            </div>
+                                        )) : <p className="text-[11px] text-slate-500 font-bold">{rp.targetCal - totalCal <= 0 ? '🎉 Bạn đã đủ calo hôm nay.' : 'Calo còn lại ít, hãy chọn món nhẹ hoặc uống thêm nước.'}</p>}
+                                        <p className="text-[9px] text-slate-400 font-bold italic">Gợi ý theo calo còn lại hôm nay · số liệu ước lượng 1 khẩu phần</p>
+                                    </div>
+                                </>)}
                             </section>
 
                             {/* Interactive FAQ Accordion Section */}
@@ -819,6 +954,88 @@
                         </div>
                     </div>
                 )}
+
+                {isLoggedIn && isOnboardOpen && (() => {
+                    const bmi = bmiInfo(Number(obWeight), Number(obHeight));
+                    const fld = 'w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm';
+                    return (
+                        <div className="fixed inset-0 z-[55] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                            <form onSubmit={saveProfile} className="fade bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
+                                <div className="text-center space-y-1">
+                                    <div className="text-4xl">👋</div>
+                                    <h3 className="font-black text-lg text-slate-900">Chào mừng đến NutriVN!</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Cho mình biết một chút về bạn để tính BMI, gợi ý mục tiêu và lượng calo phù hợp.</p>
+                                </div>
+                                <div className="space-y-3 text-xs">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500">Họ và tên</label>
+                                        <input type="text" value={obName} onChange={e => setObName(e.target.value)} placeholder="Nguyễn Văn A" className={fld} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Tuổi</label>
+                                            <input type="number" inputMode="numeric" value={obAge} onChange={e => setObAge(e.target.value)} placeholder="20" className={fld} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Giới tính</label>
+                                            <select value={obGender} onChange={e => setObGender(e.target.value)} className={fld}>
+                                                <option value="male">Nam</option>
+                                                <option value="female">Nữ</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Chiều cao (cm)</label>
+                                            <input type="number" inputMode="decimal" value={obHeight} onChange={e => setObHeight(e.target.value)} placeholder="170" className={fld} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-slate-500">Cân nặng (kg)</label>
+                                            <input type="number" inputMode="decimal" value={obWeight} onChange={e => setObWeight(e.target.value)} placeholder="65" className={fld} />
+                                        </div>
+                                    </div>
+                                    {bmi ? (
+                                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-center">
+                                            <div className="text-[10px] font-bold text-slate-500">Chỉ số BMI của bạn</div>
+                                            <div className="text-2xl font-black text-slate-900">{bmi.value} <span className={'text-sm ' + bmi.color}>{bmi.label}</span></div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-slate-400 font-bold text-center italic">Nhập chiều cao và cân nặng để xem BMI</p>
+                                    )}
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500">Mục tiêu của bạn{bmi ? ' (đã gợi ý theo BMI)' : ''}</label>
+                                        <div className="grid grid-cols-2 gap-1.5 mt-1">
+                                            {GOALS.map(([k, label]) => {
+                                                const sel = (obGoal || (bmi ? suggestGoal(bmi.value) : '')) === k;
+                                                const sug = bmi && suggestGoal(bmi.value) === k;
+                                                return (
+                                                    <button key={k} type="button" onClick={() => setObGoal(k)} className={`p-2 rounded-xl border font-bold relative ${sel ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                                                        {label}
+                                                        {sug && <span className="absolute -top-1.5 right-1.5 text-[9px] bg-emerald-600 text-white rounded-full px-1.5">Gợi ý</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-500">Mức vận động</label>
+                                        <select value={obActivity} onChange={e => setObActivity(e.target.value)} className={fld}>
+                                            <option value={1.2}>Ít vận động</option>
+                                            <option value={1.375}>Nhẹ (1-3 buổi/tuần)</option>
+                                            <option value={1.55}>Vừa (3-5 buổi/tuần)</option>
+                                            <option value={1.725}>Nhiều (6-7 buổi/tuần)</option>
+                                        </select>
+                                    </div>
+                                    {obErr && <p className="text-[11px] font-bold text-rose-600 text-center">{obErr}</p>}
+                                </div>
+                                <div className="space-y-2">
+                                    <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-sm">LƯU & BẮT ĐẦU</button>
+                                    <button type="button" onClick={() => setIsOnboardOpen(false)} className="w-full py-2 text-xs font-bold text-slate-400 hover:text-slate-600">Để sau</button>
+                                </div>
+                            </form>
+                        </div>
+                    );
+                })()}
 
                 {toast && (
                     <div className="fixed bottom-24 inset-x-0 flex justify-center z-[60] pointer-events-none">
