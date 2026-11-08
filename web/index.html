@@ -181,10 +181,93 @@
             name: 'Trần Văn Hồng',
             title: 'Giám Đốc',
             role: 'Technical Director',
-            image: 'c:\Users\LOQ\Downloads\van hong.png',
+            image: 'images/van_hong.png',
             bio: 'Chịu trách nhiệm kiến trúc mô hình Deep Learning nhận diện thực phẩm.'
         }
     ];
+
+    const GuideAccordion = ({ isOpen, onToggle }) => (
+        <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-white shadow-sm">
+            <button
+                type="button"
+                aria-expanded={isOpen}
+                onClick={onToggle}
+                className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-extrabold text-emerald-700"
+            >
+                <span>📖 Hướng dẫn sử dụng</span>
+                <span>{isOpen ? 'Thu gọn ▲' : 'Mở ▼'}</span>
+            </button>
+            {isOpen && (
+                <div className="space-y-3 border-t border-emerald-100 px-5 py-4">
+                    {GUIDE.map(([icon, title, description]) => (
+                        <div key={title} className="flex items-start gap-3 text-xs">
+                            <span className="text-base">{icon}</span>
+                            <div>
+                                <h3 className="font-extrabold text-slate-800">{title}</h3>
+                                <p className="mt-0.5 leading-relaxed text-slate-600">{description}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </section>
+    );
+
+    const TeamMembersModal = ({ onClose }) => (
+        <div onClick={onClose} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div onClick={e => e.stopPropagation()} className="fade bg-white rounded-3xl p-5 max-w-sm w-full space-y-4">
+                <div className="flex justify-between items-center border-b pb-2">
+                    <h3 className="font-extrabold text-slate-900 text-sm">👥 Ban Lãnh Đạo NutriVN</h3>
+                    <button onClick={onClose} className="text-slate-400 font-black">✕</button>
+                </div>
+                <div className="space-y-3">
+                    {TEAM_MEMBERS.map(member => (
+                        <div key={member.name} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-start space-x-3">
+                            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 text-xs font-black text-emerald-700">
+                                {member.name.split(' ').map(part => part[0]).slice(-2).join('')}
+                                <img
+                                    src={member.image}
+                                    alt={member.name}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                    onError={e => { e.currentTarget.style.display = 'none'; }}
+                                />
+                            </div>
+                            <div>
+                                <div className="font-black text-xs text-slate-900">{member.name}</div>
+                                <div className="text-[10px] text-emerald-600 font-bold">{member.role}</div>
+                                <p className="text-[10px] text-slate-500">{member.bio}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
+    const MealDiaryItem = ({ meal, onCategoryChange, onRemove }) => (
+        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-3 min-w-0">
+                {meal.thumb
+                    ? <img src={meal.thumb} alt={meal.name} className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                    : <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">🍽️</div>}
+                <div className="min-w-0">
+                    <div className="font-bold text-xs text-slate-900 truncate">{meal.name}</div>
+                    <div className="text-[10px] text-slate-500">{meal.time} • P:{meal.protein}g C:{meal.carbs}g F:{meal.fat}g</div>
+                </div>
+            </div>
+            <div className="flex items-center space-x-1.5 shrink-0">
+                <span className="font-black text-emerald-600 text-xs">{meal.calories} kcal</span>
+                <select
+                    value={meal.category}
+                    onChange={e => onCategoryChange(meal.id, e.target.value)}
+                    className="text-[10px] bg-white border border-slate-200 rounded-lg p-1 font-bold"
+                >
+                    {MEAL_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <button onClick={() => onRemove(meal.id)} aria-label="Xoá món" className="text-rose-500 hover:bg-rose-50 rounded-lg px-1.5 font-black">✕</button>
+            </div>
+        </div>
+    );
 
     const INITIAL_MEALS = [
         {
@@ -464,6 +547,14 @@
             setActiveTab('diary');
         };
 
+        const updateMealCategory = (id, category) => {
+            setMeals(prev => prev.map(meal => meal.id === id ? { ...meal, category } : meal));
+        };
+
+        const removeMeal = id => {
+            setMeals(prev => prev.filter(meal => meal.id !== id));
+        };
+
         return (
             <div className={`min-h-screen bg-slate-50 ${isLoggedIn ? 'pb-12' : ''}`}>
                 {!isLoggedIn ? (
@@ -532,30 +623,7 @@
                     {activeTab === 'home' && (
                         <div className="space-y-4">
                             {isLoggedIn && <h2 className="px-1 text-lg font-black text-slate-800">Xin chào, <span className="text-emerald-600">{userEmail.split('@')[0]}</span> 👋</h2>}
-                            <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-white shadow-sm">
-                                <button
-                                    type="button"
-                                    aria-expanded={isGuideOpen}
-                                    onClick={() => setIsGuideOpen(open => !open)}
-                                    className="flex w-full items-center justify-between px-5 py-3 text-left text-sm font-extrabold text-emerald-700"
-                                >
-                                    <span>📖 Hướng dẫn sử dụng</span>
-                                    <span>{isGuideOpen ? 'Thu gọn ▲' : 'Mở ▼'}</span>
-                                </button>
-                                {isGuideOpen && (
-                                    <div className="space-y-3 border-t border-emerald-100 px-5 py-4">
-                                        {GUIDE.map(([icon, title, description]) => (
-                                            <div key={title} className="flex items-start gap-3 text-xs">
-                                                <span className="text-base">{icon}</span>
-                                                <div>
-                                                    <h3 className="font-extrabold text-slate-800">{title}</h3>
-                                                    <p className="mt-0.5 leading-relaxed text-slate-600">{description}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </section>
+                            <GuideAccordion isOpen={isGuideOpen} onToggle={() => setIsGuideOpen(open => !open)} />
                             <section className="bg-gradient-to-b from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-emerald-500">
                                 <div className="text-center space-y-1">
                                     <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
@@ -794,23 +862,13 @@
                                         return list.length > 0 && (
                                             <div key={k} className="space-y-2">
                                                 <div className="text-[10px] font-black text-slate-500 uppercase">{label}</div>
-                                                {list.map(m => (
-                                                    <div key={m.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-2">
-                                                        <div className="flex items-center space-x-3 min-w-0">
-                                                            {m.thumb ? <img src={m.thumb} alt={m.name} className="w-10 h-10 rounded-xl object-cover shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">🍽️</div>}
-                                                            <div className="min-w-0">
-                                                                <div className="font-bold text-xs text-slate-900 truncate">{m.name}</div>
-                                                                <div className="text-[10px] text-slate-500">{m.time} • P:{m.protein}g C:{m.carbs}g F:{m.fat}g</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center space-x-1.5 shrink-0">
-                                                            <span className="font-black text-emerald-600 text-xs">{m.calories} kcal</span>
-                                                            <select value={m.category} onChange={e => setMeals(p => p.map(x => x.id === m.id ? { ...x, category: e.target.value } : x))} className="text-[10px] bg-white border border-slate-200 rounded-lg p-1 font-bold">
-                                                                {MEAL_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                                                            </select>
-                                                            <button onClick={() => setMeals(p => p.filter(x => x.id !== m.id))} aria-label="Xoá món" className="text-rose-500 hover:bg-rose-50 rounded-lg px-1.5 font-black">✕</button>
-                                                        </div>
-                                                    </div>
+                                                {list.map(meal => (
+                                                    <MealDiaryItem
+                                                        key={meal.id}
+                                                        meal={meal}
+                                                        onCategoryChange={updateMealCategory}
+                                                        onRemove={removeMeal}
+                                                    />
                                                 ))}
                                             </div>
                                         );
@@ -1046,35 +1104,16 @@
                 {isLoggedIn && (<>
                 <footer className="max-w-xl mx-auto mt-8 px-4 py-4 border-t border-slate-200 text-center space-y-2 text-xs">
                     <div className="flex justify-center space-x-4 text-slate-500 font-bold">
-                        <a href="https://facebook.com" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Facebook</a>
-                        <a href="https://zalo.me" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Zalo</a>
-                        <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-emerald-600">GitHub</a>
+                        <a href="https://www.facebook.com/huy.vo.59895?locale=vi_VN" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Facebook</a>
+                        <a href="https://zalo.me/0905467532" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Zalo</a>
+                        <a href="https://github.com/Huysadboy2610" target="_blank" rel="noreferrer" className="hover:text-emerald-600">GitHub</a>
                         <button onClick={() => setIsTeamOpen(true)} className="hover:text-emerald-600 cursor-pointer">Ban Lãnh Đạo</button>
                     </div>
                     <p className="text-[10px] text-slate-400 font-bold">© 2026 NutriVN FoodTech AI. All rights reserved.</p>
                 </footer>
 
                 {isTeamOpen && (
-                    <div onClick={() => setIsTeamOpen(false)} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div onClick={e => e.stopPropagation()} className="fade bg-white rounded-3xl p-5 max-w-sm w-full space-y-4">
-                            <div className="flex justify-between items-center border-b pb-2">
-                                <h3 className="font-extrabold text-slate-900 text-sm">👥 Ban Lãnh Đạo NutriVN</h3>
-                                <button onClick={() => setIsTeamOpen(false)} className="text-slate-400 font-black">✕</button>
-                            </div>
-                            <div className="space-y-3">
-                                {TEAM_MEMBERS.map((member, idx) => (
-                                    <div key={idx} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-start space-x-3">
-                                        <img src={member.image} alt={member.name} className="w-12 h-12 rounded-xl object-cover" />
-                                        <div>
-                                            <div className="font-black text-xs text-slate-900">{member.name}</div>
-                                            <div className="text-[10px] text-emerald-600 font-bold">{member.role}</div>
-                                            <p className="text-[10px] text-slate-500">{member.bio}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                    <TeamMembersModal onClose={() => setIsTeamOpen(false)} />
                 )}
                 </>)}
             </div>
