@@ -334,8 +334,15 @@
         const sum = k => todayMeals.reduce((a, m) => a + (m[k] || 0), 0);
         const totalCal = todayMeals.reduce((acc, curr) => acc + curr.calories, 0);
         const [targetCal, setTargetCal] = useState(() => load('nv_target', 1600));
-        const remainingCal = Math.max(targetCal - totalCal, 0);
-        const progress = Math.min(Math.round((totalCal / targetCal) * 100), 100);
+        const remainingCal = targetCal - totalCal;
+        const progress = targetCal > 0
+            ? Math.min(Math.round((totalCal / targetCal) * 100), 100)
+            : totalCal > 0 ? 100 : 0;
+        const calorieStatus = totalCal > targetCal
+            ? { label: `Vượt ${totalCal - targetCal} kcal`, tone: 'rose', text: 'text-rose-600', bg: 'bg-rose-50 border-rose-200' }
+            : totalCal === targetCal
+                ? { label: 'Đạt mục tiêu', tone: 'emerald', text: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' }
+                : { label: `Còn ${targetCal - totalCal} kcal`, tone: 'emerald', text: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' };
 
         const [isAuthOpen, setIsAuthOpen] = useState(false);
         const [showPw, setShowPw] = useState(false);
@@ -348,7 +355,6 @@
         const [userEmail, setUserEmail] = useState(() => getUser()?.name || getUser()?.email || '');
         const [isTeamOpen, setIsTeamOpen] = useState(false);
         const [isGuideOpen, setIsGuideOpen] = useState(false);
-        const [openFaqId, setOpenFaqId] = useState(1);
 
 
         // Khung hỏi thông tin lần đầu đăng ký
@@ -691,9 +697,13 @@
                                                 <div className="text-[10px] font-bold text-slate-500">Đã ăn</div>
                                                 <div className="text-sm font-black text-slate-900"><CountUp value={totalCal} /></div>
                                             </div>
-                                            <div className="bg-white rounded-xl border border-slate-200 py-1.5">
-                                                <div className="text-[10px] font-bold text-slate-500">Còn lại</div>
-                                                <div className="text-sm font-black text-emerald-600"><CountUp value={remainingCal} /></div>
+                                            <div aria-label={calorieStatus.label} className={`rounded-xl border py-1.5 ${calorieStatus.bg}`}>
+                                                <div className="text-[10px] font-bold text-slate-500">
+                                                    {totalCal > targetCal ? 'Vượt mục tiêu' : 'Còn lại'}
+                                                </div>
+                                                <div className={`text-sm font-black ${calorieStatus.text}`}>
+                                                    <CountUp value={Math.abs(remainingCal)} />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -813,28 +823,25 @@
                             </section>
 
                             {/* Interactive FAQ Accordion Section */}
-                            <section className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
+                            {/* FAQ: thu gọn mặc định, có thể mở bằng chuột hoặc bàn phím */}
+                            <section
+                                className="rounded-3xl border border-slate-200 bg-white p-4 space-y-3"
+                                aria-labelledby="faq-title"
+                            >
                                 <div className="border-b pb-2">
-                                    <h3 className="font-extrabold text-slate-900 text-xs uppercase">❓ Câu Hỏi Thường Gặp (FAQ)</h3>
+                                    <h3 id="faq-title" className="font-extrabold text-slate-900 text-xs uppercase">❓ Câu Hỏi Thường Gặp (FAQ)</h3>
                                     <p className="text-[10px] text-slate-500 font-bold">Bấm vào từng câu hỏi để xem lời giải đáp</p>
                                 </div>
-
                                 <div className="space-y-2 text-xs">
-                                    {FAQ_ITEMS.map((faq) => (
-                                        <div key={faq.id} className="border border-slate-200 rounded-2xl overflow-hidden transition-all">
-                                            <button 
-                                                onClick={() => setOpenFaqId(openFaqId === faq.id ? null : faq.id)}
-                                                className="w-full p-3 bg-slate-50 text-left font-extrabold text-slate-800 flex justify-between items-center"
-                                            >
-                                                <span>{faq.question}</span>
-                                                <span className="text-slate-400 text-sm">{openFaqId === faq.id ? '−' : '+'}</span>
-                                            </button>
-                                            {openFaqId === faq.id && (
-                                                <div className="p-3 bg-white border-t border-slate-100 text-[11px] text-slate-600 leading-relaxed font-medium">
-                                                    {faq.answer}
-                                                </div>
-                                            )}
-                                        </div>
+                                    {FAQ_ITEMS.map(faq => (
+                                        <details key={faq.id} className="group border border-slate-200 rounded-2xl overflow-hidden">
+                                            <summary className="p-3 bg-slate-50 text-left font-extrabold text-slate-800 cursor-pointer">
+                                                {faq.question}
+                                            </summary>
+                                            <div className="p-3 bg-white border-t border-slate-100 text-[11px] text-slate-600 leading-relaxed font-medium">
+                                                {faq.answer}
+                                            </div>
+                                        </details>
                                     ))}
                                 </div>
                             </section>
@@ -843,11 +850,17 @@
 
                     {activeTab === 'diary' && (
                         <div className="space-y-4">
-                            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
-                                <span className="font-bold text-emerald-900">
-                                    {remainingCal > 0 ? `🟢 Đạt chuẩn calo ngày hôm nay (còn ${remainingCal} kcal)` : '🔴 Bạn đã vượt quá hạn mức calo mục tiêu!'}
+                            <div className={`p-3 border rounded-2xl flex items-center justify-between text-xs ${calorieStatus.bg}`}>
+                                <span className={`font-bold ${calorieStatus.tone === 'rose' ? 'text-rose-900' : 'text-emerald-900'}`}>
+                                    {totalCal > targetCal
+                                        ? `🔴 Bạn đã vượt mục tiêu ${totalCal - targetCal} kcal`
+                                        : totalCal === targetCal
+                                            ? '🟢 Bạn đã đạt đúng mục tiêu calo hôm nay'
+                                            : `🟢 Đạt chuẩn calo ngày hôm nay (còn ${targetCal - totalCal} kcal)`}
                                 </span>
-                                <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full">{progress}%</span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${calorieStatus.tone === 'rose' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                                    {progress}%
+                                </span>
                             </div>
 
                             <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
@@ -856,7 +869,14 @@
                                     <span className="text-[10px] text-emerald-600 font-bold">{todayMeals.length} món đã lưu</span>
                                 </div>
                                 <div className="space-y-2">
-                                    {todayMeals.length === 0 && <p className="text-center text-[10px] text-slate-400 font-bold py-4">Chưa có món nào</p>}
+                                    {todayMeals.length === 0 && (
+                                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+                                            <p className="text-[11px] font-black text-slate-600">Chưa có món nào hôm nay</p>
+                                            <p className="mt-1 text-[10px] text-slate-500">
+                                                Bấm vào <span className="font-bold text-emerald-600">Quét món ăn</span> để bắt đầu ghi nhật ký.
+                                            </p>
+                                        </div>
+                                    )}
                                     {MEAL_TYPES.map(([k, label]) => {
                                         const list = todayMeals.filter(m => m.category === k);
                                         return list.length > 0 && (
