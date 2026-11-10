@@ -39,7 +39,7 @@ Frontend (`web/`) -> backend (`api/`, `POST /api/analyze`) -> model service (`PO
 
 | Member | Role |
 |---|---|
-| Venn (Thanh) | Dish recognition model, model service, deployment of the model service, repo owner and pull request review |
+| Thanh | Dish recognition model, model service, deployment of the model service, repo owner and pull request review |
 | Huy | Frontend (Tailwind, JavaScript, responsive). AI course: nutrition table and portion estimation, API comparison |
 | Tuấn Anh | Backend (Node.js), MySQL database, nutrition data. AI course: data collection (dish photos) |
 | Hồng | Report, README, wireframes (Figma), plan and issues, self-report collection; supports the backend and database |
