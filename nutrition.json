@@ -1,0 +1,110 @@
+{
+  "phobo": {
+    "ten": "Phở bò",
+    "khau_phan": "1 khẩu phần",
+    "calo": 450,
+    "dam": 28,
+    "tinh_bot": 55,
+    "beo": 12,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "buncha": {
+    "ten": "Bún chả",
+    "khau_phan": "1 khẩu phần",
+    "calo": 600,
+    "dam": 30,
+    "tinh_bot": 70,
+    "beo": 20,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "comtam": {
+    "ten": "Cơm tấm sườn",
+    "khau_phan": "1 khẩu phần",
+    "calo": 520,
+    "dam": 32,
+    "tinh_bot": 58,
+    "beo": 16,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "spring_rolls": {
+    "ten": "Chả giò",
+    "khau_phan": "1 khẩu phần",
+    "calo": 250,
+    "dam": 8,
+    "tinh_bot": 25,
+    "beo": 13,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "fried_rice": {
+    "ten": "Cơm chiên",
+    "khau_phan": "1 khẩu phần",
+    "calo": 480,
+    "dam": 12,
+    "tinh_bot": 70,
+    "beo": 16,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "ramen": {
+    "ten": "Mì ramen",
+    "khau_phan": "1 khẩu phần",
+    "calo": 550,
+    "dam": 22,
+    "tinh_bot": 70,
+    "beo": 20,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "sushi": {
+    "ten": "Sushi",
+    "khau_phan": "1 khẩu phần",
+    "calo": 350,
+    "dam": 15,
+    "tinh_bot": 60,
+    "beo": 5,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "pizza": {
+    "ten": "Pizza",
+    "khau_phan": "1 khẩu phần",
+    "calo": 540,
+    "dam": 22,
+    "tinh_bot": 66,
+    "beo": 20,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "hamburger": {
+    "ten": "Hamburger",
+    "khau_phan": "1 khẩu phần",
+    "calo": 500,
+    "dam": 25,
+    "tinh_bot": 40,
+    "beo": 26,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "french_fries": {
+    "ten": "Khoai tây chiên",
+    "khau_phan": "1 khẩu phần",
+    "calo": 365,
+    "dam": 4,
+    "tinh_bot": 48,
+    "beo": 17,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "caesar_salad": {
+    "ten": "Salad Caesar",
+    "khau_phan": "1 khẩu phần",
+    "calo": 330,
+    "dam": 10,
+    "tinh_bot": 14,
+    "beo": 26,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  },
+  "omelette": {
+    "ten": "Trứng chiên",
+    "khau_phan": "1 khẩu phần",
+    "calo": 190,
+    "dam": 13,
+    "tinh_bot": 1,
+    "beo": 15,
+    "nguon": "Số tạm lấy từ giao diện (chưa đối chiếu) - cần thay bằng Bảng Thành phần Dinh dưỡng Thực phẩm Việt Nam"
+  }
+}
