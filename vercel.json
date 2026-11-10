@@ -1,0 +1,1 @@
+{"buildCommand":"npm --prefix web ci && npm --prefix web run build","outputDirectory":"web/dist","functions":{"api/index.py":{"includeFiles":"ml/models/**","memory":1024,"maxDuration":60}},"rewrites":[{"source":"/api/(.*)","destination":"/api/index.py"},{"source":"/(.*)","destination":"/index.html"}]}

@@ -1,7 +1,6 @@
-torch
-torchvision
-scikit-learn
-matplotlib
-onnx
+fastapi
+uvicorn
+python-multipart
 onnxruntime
 pillow
+numpy
