@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 // ===== CẤU HÌNH =====
 const USE_DEMO = false;                     // true: demo 1 món (chưa có backend) | false: gọi API /predict của Thanh
-const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');   // API /predict của Thanh, cấu hình trong .env
+const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, ''); // Same-origin Vercel API by default; override for Render
 const UPLOAD_FIELD = 'file';               // tên field ảnh trong FastAPI (đổi nếu khác)
 const GOOGLE_CLIENT_ID = '';               // dán Google Client ID vào đây
 const FACEBOOK_APP_ID = '';                // dán Facebook App ID vào đây
@@ -487,18 +487,28 @@ function NutriApp() {
                 await new Promise(r => setTimeout(r, 1200));
                 d = { mon: 'phobo', do_tin_cay: 0.92, chac_chan: true };
             } else {
-                if (!API_URL) throw new Error('chưa cấu hình VITE_API_URL');
                 const fd = new FormData(); fd.append(UPLOAD_FIELD, f);
                 const r = await fetch(API_URL + '/predict', { method: 'POST', body: fd });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 d = await r.json();
             }
+            // A recognized Food50 dish may not have portion-specific nutrition data yet.
+            // Never invent calories or macros for a missing entry.
             const n = NUTRITION[d.mon];
-            if (!n) throw new Error('món "' + d.mon + '" chưa có trong bảng dinh dưỡng');
-            setHeroScannedDish({ name: n[0], calories: n[1], protein: n[2], carbs: n[3], fat: n[4], thumb, conf: Math.round(d.do_tin_cay * 100), sure: d.chac_chan });
+            setHeroScannedDish({
+                name: n ? n[0] : d.mon,
+                calories: n ? n[1] : null,
+                protein: n ? n[2] : null,
+                carbs: n ? n[3] : null,
+                fat: n ? n[4] : null,
+                hasNutrition: Boolean(n),
+                thumb,
+                conf: Math.round(d.do_tin_cay * 100),
+                sure: d.chac_chan
+            });
             setHeroScanState('result');
         } catch (err) {
-            setScanErr('Không nhận diện được: ' + err.message + '. Kiểm tra API đang chạy ở ' + API_URL + ' và đã bật CORS.');
+            setScanErr('Không thể nhận diện ảnh: ' + err.message + '. Kiểm tra API tại ' + API_URL + '.');
             setHeroScanState('idle');
         }
     };
@@ -603,7 +613,7 @@ function NutriApp() {
                                     📸 TÍNH NĂNG CHÍNH
                                 </span>
                                 <h3 className="text-xl font-black">QUÉT MÓN ĂN VIỆT BẰNG AI</h3>
-                                <p className="text-xs text-emerald-100">Đưa camera vào tô/đĩa thức ăn để tính calo ngay</p>
+                                <p className="text-xs text-emerald-100">Tải ảnh món ăn để AI nhận diện; dinh dưỡng hiển thị khi có dữ liệu</p>
                             </div>
 
                             <div className="bg-white text-slate-900 rounded-2xl p-3 shadow-md space-y-3">
@@ -616,7 +626,7 @@ function NutriApp() {
                                 {heroScanState === 'scanning' && (
                                     <div className="py-5 text-center space-y-2">
                                         <div className="text-3xl animate-bounce">🤖</div>
-                                        <p className="text-xs font-extrabold text-emerald-800 animate-pulse">Đang quét dinh dưỡng món ăn...</p>
+                                        <p className="text-xs font-extrabold text-emerald-800 animate-pulse">Đang nhận diện món ăn...</p>
                                     </div>
                                 )}
                                 {heroScanState === 'result' && heroScannedDish && (
@@ -624,11 +634,19 @@ function NutriApp() {
                                         {heroScannedDish.thumb && <img src={heroScannedDish.thumb} alt="" className="w-full h-28 object-cover rounded-xl" />}
                                         <div className="flex justify-between items-center text-xs">
                                             <span className="font-extrabold text-slate-900">{heroScannedDish.name}</span>
-                                            <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{heroScannedDish.calories} kcal</span>
+                                            <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                                 {heroScannedDish.hasNutrition ? `${heroScannedDish.calories} kcal` : 'Chưa có dữ liệu kcal'}
+                                             </span>
                                         </div>
-                                        <div className="text-[10px] text-slate-500 font-bold">P:{heroScannedDish.protein}g C:{heroScannedDish.carbs}g F:{heroScannedDish.fat}g • Độ tin cậy {heroScannedDish.conf}%</div>
+                                        <div className="text-[10px] text-slate-500 font-bold">
+                                            {heroScannedDish.hasNutrition && `P:${heroScannedDish.protein}g C:${heroScannedDish.carbs}g F:${heroScannedDish.fat}g • `}
+                                            Độ tin cậy {heroScannedDish.conf}%
+                                         </div>
+                                         {!heroScannedDish.hasNutrition && <p className="text-[10px] text-amber-700 font-bold">AI đã nhận diện món ăn. Chưa có dữ liệu dinh dưỡng được kiểm chứng để thêm vào nhật ký.</p>}
                                         {!heroScannedDish.sure && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp, hãy chụp lại rõ hơn.</p>}
-                                        <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">THÊM VÀO NHẬT KÝ</button>
+                                        {heroScannedDish.hasNutrition && (
+                                             <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">THÊM VÀO NHẬT KÝ</button>
+                                         )}
                                     </div>
                                 )}
                                 {scanErr && heroScanState === 'idle' && <p className="text-[10px] font-bold text-rose-600 text-center px-2">{scanErr}</p>}
