@@ -38,11 +38,17 @@ const GUIDE = [
 const glassInput = 'w-full px-4 py-3 bg-white/15 border border-white/40 rounded-2xl font-semibold text-white placeholder-white/70';
 const MEAL_TYPES = [['breakfast', '🌅 Bữa sáng'], ['lunch', '☀️ Bữa trưa'], ['afternoon', '🍰 Ăn xế'], ['dinner', '🌙 Bữa tối'], ['snack', '🍿 Ăn vặt']];
 // SỐ TẠM / 1 khẩu phần: [tên, kcal, protein, carbs, fat] -> thay bằng Bảng TPDD Việt Nam
+// Nutrition values below are existing project estimates per illustrative serving,
+// NOT values predicted from the image or validated measurements of portion size.
+// Food50 model labels must match keys exactly; unknown dishes remain unavailable.
 const NUTRITION = {
     phobo: ['Phở bò', 450, 28, 55, 12], comtam: ['Cơm tấm sườn', 520, 32, 58, 16], buncha: ['Bún chả', 600, 30, 70, 20],
     spring_rolls: ['Chả giò', 250, 8, 25, 13], fried_rice: ['Cơm chiên', 480, 12, 70, 16], ramen: ['Mì ramen', 550, 22, 70, 20],
     sushi: ['Sushi', 350, 15, 60, 5], pizza: ['Pizza', 540, 22, 66, 20], hamburger: ['Hamburger', 500, 25, 40, 26],
-    french_fries: ['Khoai tây chiên', 365, 4, 48, 17], caesar_salad: ['Salad Caesar', 330, 10, 14, 26], omelette: ['Trứng chiên', 190, 13, 1, 15]
+    french_fries: ['Khoai tây chiên', 365, 4, 48, 17], caesar_salad: ['Salad Caesar', 330, 10, 14, 26], omelette: ['Trứng chiên', 190, 13, 1, 15],
+    // Food50 labels use English/transliterated names; reuse only matching existing estimates.
+    Pho: ['Phở (ước tính theo phở bò)', 450, 28, 55, 12],
+    'Com tam': ['Cơm tấm (ước tính theo cơm tấm sườn)', 520, 32, 58, 16]
 };
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const dayKey = d => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD theo giờ máy
@@ -502,6 +508,7 @@ function NutriApp() {
                 carbs: n ? n[3] : null,
                 fat: n ? n[4] : null,
                 hasNutrition: Boolean(n),
+                nutritionIsEstimate: Boolean(n),
                 thumb,
                 conf: Math.round(d.do_tin_cay * 100),
                 sure: d.chac_chan
@@ -640,12 +647,13 @@ function NutriApp() {
                                         </div>
                                         <div className="text-[10px] text-slate-500 font-bold">
                                             {heroScannedDish.hasNutrition && `P:${heroScannedDish.protein}g C:${heroScannedDish.carbs}g F:${heroScannedDish.fat}g • `}
-                                            Độ tin cậy {heroScannedDish.conf}%
+                                            Độ tin cậy nhận diện {heroScannedDish.conf}%
                                          </div>
+                                         {heroScannedDish.hasNutrition && <p className="text-[10px] text-amber-700 font-semibold">Dinh dưỡng ước tính theo khẩu phần tham khảo, không suy ra được lượng ăn thực tế từ ảnh.</p>}
                                          {!heroScannedDish.hasNutrition && <p className="text-[10px] text-amber-700 font-bold">AI đã nhận diện món ăn. Chưa có dữ liệu dinh dưỡng được kiểm chứng để thêm vào nhật ký.</p>}
                                         {!heroScannedDish.sure && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp, hãy chụp lại rõ hơn.</p>}
                                         {heroScannedDish.hasNutrition && (
-                                             <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">THÊM VÀO NHẬT KÝ</button>
+                                             <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">LƯU ƯỚC TÍNH VÀO NHẬT KÝ</button>
                                          )}
                                     </div>
                                 )}
