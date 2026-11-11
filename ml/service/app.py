@@ -10,6 +10,7 @@ from PIL import Image
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", Path(__file__).parent.parent / "models"))
 MIN_CONF = float(os.environ.get("MIN_CONF", 0.5))  # below this, "chac_chan" is false
+TOP2_GAP_THRESHOLD = 0.10  # 10 percentage points, not a relative percent
 MAX_BYTES = 8 * 1024 * 1024  # public deploy: reject huge uploads
 
 sess = ort.InferenceSession(str(MODEL_DIR / "food_classifier.onnx"), providers=["CPUExecutionProvider"])
@@ -65,7 +66,14 @@ async def predict(file: UploadFile = File(...)):
     logits = sess.run(None, {"image": preprocess(img)})[0][0]
     p = np.exp(logits - logits.max()); p /= p.sum()
     top = np.argsort(p)[::-1][:3]
+    # A near tie is ambiguous even when the top class exceeds MIN_CONF.
+    top1_prob, top2_prob = float(p[top[0]]), float(p[top[1]]) if len(top) > 1 else 0.0
+    gap = top1_prob - top2_prob
+    ambiguous = len(top) > 1 and gap < TOP2_GAP_THRESHOLD
     return {
+        "can_xac_nhan": bool(ambiguous),
+        "chenh_lech_top2": round(gap, 3),
+        "ly_do_xac_nhan": "top_two_close" if ambiguous else None,
         "mon": CLASSES[top[0]],
         "do_tin_cay": round(float(p[top[0]]), 3),
         "chac_chan": bool(p[top[0]] >= MIN_CONF),
