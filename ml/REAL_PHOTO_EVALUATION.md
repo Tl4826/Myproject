@@ -33,3 +33,16 @@ Kết quả:
 - `evaluation-results/predictions.csv`: từng ảnh, nhãn thật, nhãn dự đoán, xác suất và Top 3.
 
 Không upload ảnh lên server. Không tự huấn luyện lại model. Kết quả chỉ đại diện cho tập ảnh đã cung cấp; ảnh quá ít hoặc mất cân bằng giữa các món sẽ khiến tỷ lệ tổng thể khó diễn giải. Thư mục kết quả không chứa nội dung ảnh, nhưng tên file có thể mang thông tin riêng tư: kiểm tra trước khi chia sẻ.
+
+## Chạy trực tiếp từ Google Colab với Google Drive
+
+**Quan trọng:** Google Colab authentication yêu cầu IPython kernel. Không chạy `!python ml/evaluate_drive_photos.py` vì lệnh này tạo tiến trình riêng và gây lỗi `AttributeError: 'NoneType' object has no attribute 'kernel'`.
+
+Trong **ô code Colab**, sau khi clone repo và cài dependencies, chạy:
+
+```python
+%cd /content/NutriVN
+%run ml/evaluate_drive_photos.py
+```
+
+Colab sẽ hiện hộp thoại cấp quyền Drive. Chỉ cần chạy lại `%run` nếu lần đầu chưa hoàn tất xác thực. Báo cáo xuất vào `/content/NutriVN/evaluation-results/own_photos`.
