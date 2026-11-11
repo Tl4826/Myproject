@@ -29,10 +29,12 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements.txt
       - name: Install API dependencies
-        run: python -m pip install -r requirements.txt httpx onnx
+        run: python -m pip install -r requirements.txt httpx onnx pytest
       - name: Verify model artifact
         run: |
           test -s ml/models/food_classifier.onnx
           test -s ml/models/classes.json
-      - name: Run backend regression tests
-        run: python -m unittest discover -s ml/service -p 'test_*.py' -v
+      - name: Run Food50 real-model API tests
+        run: python -m unittest discover -s ml/service -p 'test_food50_api.py' -v
+      - name: Run legacy fake-model tests in separate process
+        run: python -m pytest ml/service/test_app.py -v
