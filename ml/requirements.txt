@@ -1,0 +1,8 @@
+# Training and notebook dependencies. The root requirements.txt is for the deployed API.
+torch
+torchvision
+scikit-learn
+matplotlib
+onnx
+onnxruntime
+pillow
