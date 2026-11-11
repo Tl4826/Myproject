@@ -41,6 +41,8 @@ const MEAL_TYPES = [['breakfast', '🌅 Bữa sáng'], ['lunch', '☀️ Bữa t
 // Nutrition values below are existing project estimates per illustrative serving,
 // NOT values predicted from the image or validated measurements of portion size.
 // Food50 model labels must match keys exactly; unknown dishes remain unavailable.
+const FOOD50_CLASSES = ["pizza","hamburger","sushi","ramen","fried_rice","french_fries","caesar_salad","omelette","grilled_cheese_sandwich","steak","spaghetti_bolognese","lasagna","pancakes","waffles","donuts","ice_cream","chicken_wings","french_onion_soup","grilled_salmon","greek_salad","Banh beo","Banh bot loc","Banh can","Banh canh","Banh chung","Banh cuon","Banh duc","Banh gio","Banh khot","Banh mi","Banh pia","Banh tet","Banh trang nuong","Banh xeo","Bun bo Hue","Bun dau mam tom","Bun mam","Bun rieu","Bun thit nuong","Ca kho to","Canh chua","Cao lau","Chao long","Com tam","Goi cuon","Hu tieu","Mi quang","Nem chua","Pho","Xoi xeo"];
+
 const NUTRITION = {
     phobo: ['Phở bò', 450, 28, 55, 12], comtam: ['Cơm tấm sườn', 520, 32, 58, 16], buncha: ['Bún chả', 600, 30, 70, 20],
     spring_rolls: ['Chả giò', 250, 8, 25, 13], fried_rice: ['Cơm chiên', 480, 12, 70, 16], ramen: ['Mì ramen', 550, 22, 70, 20],
@@ -300,6 +302,8 @@ function NutriApp() {
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
     const [scanErr, setScanErr] = useState('');
+    const [scanCandidates, setScanCandidates] = useState([]);
+    const [scanOriginalPrediction, setScanOriginalPrediction] = useState(null);
 
     const today = dayKey(new Date());
     const todayMeals = meals.filter(m => m.date === today);
@@ -480,12 +484,31 @@ function NutriApp() {
         setPlanErr(''); setEditPlan(false); notify('Đã lập lộ trình');
     };
 
+    const chooseScannedDish = (label) => {
+        const n = NUTRITION[label];
+        const candidate = scanCandidates.find(x => x.mon === label);
+        setHeroScannedDish(prev => ({
+            ...prev,
+            name: n ? n[0] : label,
+            calories: n ? n[1] : null,
+            protein: n ? n[2] : null,
+            carbs: n ? n[3] : null,
+            fat: n ? n[4] : null,
+            hasNutrition: Boolean(n),
+            nutritionIsEstimate: Boolean(n),
+            conf: candidate ? Math.round(candidate.do_tin_cay * 100) : null,
+            sure: candidate ? candidate.do_tin_cay >= 0.5 : false,
+            manuallySelected: label !== scanOriginalPrediction
+        }));
+    };
+
     const handleFile = async (e) => {
         const f = e.target.files[0]; e.target.value = '';
         if (!f) return;
         setActiveTab('home');
         if (!f.type.startsWith('image/') || f.size > 8e6) { setScanErr('Chỉ nhận file ảnh dưới 8MB'); return; }
         setScanErr(''); setHeroScanState('scanning');
+        setScanCandidates([]); setScanOriginalPrediction(null);
         const thumb = await toThumb(f);
         try {
             let d;
@@ -500,6 +523,8 @@ function NutriApp() {
             }
             // A recognized Food50 dish may not have portion-specific nutrition data yet.
             // Never invent calories or macros for a missing entry.
+            setScanOriginalPrediction(d.mon);
+            setScanCandidates(Array.isArray(d.top3) && d.top3.length ? d.top3 : [{ mon: d.mon, do_tin_cay: d.do_tin_cay }]);
             const n = NUTRITION[d.mon];
             setHeroScannedDish({
                 name: n ? n[0] : d.mon,
@@ -511,7 +536,8 @@ function NutriApp() {
                 nutritionIsEstimate: Boolean(n),
                 thumb,
                 conf: Math.round(d.do_tin_cay * 100),
-                sure: d.chac_chan
+                sure: d.chac_chan,
+                manuallySelected: false
             });
             setHeroScanState('result');
         } catch (err) {
@@ -647,11 +673,33 @@ function NutriApp() {
                                         </div>
                                         <div className="text-[10px] text-slate-500 font-bold">
                                             {heroScannedDish.hasNutrition && `P:${heroScannedDish.protein}g C:${heroScannedDish.carbs}g F:${heroScannedDish.fat}g • `}
-                                            Độ tin cậy nhận diện {heroScannedDish.conf}%
+                                            {heroScannedDish.conf === null ? 'Món do bạn chọn (không có xác suất AI)' : `Độ tin cậy nhận diện ${heroScannedDish.conf}%`}
                                          </div>
+                                         {scanCandidates.length > 0 && (
+                                             <div className="rounded-xl bg-slate-50 p-2 space-y-2">
+                                                 <p className="text-[11px] font-bold text-slate-700">Top 3 dự đoán của AI — chọn món đúng nếu AI nhầm:</p>
+                                                 <div className="flex flex-wrap gap-1.5">
+                                                     {scanCandidates.map((candidate, i) => (
+                                                         <button key={candidate.mon} type="button" onClick={() => chooseScannedDish(candidate.mon)}
+                                                             className="rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-50">
+                                                             {i + 1}. {candidate.mon} ({Math.round(candidate.do_tin_cay * 100)}%)
+                                                         </button>
+                                                     ))}
+                                                 </div>
+                                                 <label className="block text-[11px] font-semibold text-slate-700">
+                                                     Không đúng? Chọn trong 50 món:
+                                                     <select value="" onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
+                                                         className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
+                                                         <option value="">-- Chọn tên món đúng --</option>
+                                                         {FOOD50_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
+                                                     </select>
+                                                 </label>
+                                                 {heroScannedDish.manuallySelected && <p className="text-[10px] text-emerald-700 font-semibold">Đã dùng tên món bạn chọn thay cho dự đoán ban đầu của AI.</p>}
+                                             </div>
+                                         )}
                                          {heroScannedDish.hasNutrition && <p className="text-[10px] text-amber-700 font-semibold">Dinh dưỡng ước tính theo khẩu phần tham khảo, không suy ra được lượng ăn thực tế từ ảnh.</p>}
                                          {!heroScannedDish.hasNutrition && <p className="text-[10px] text-amber-700 font-bold">AI đã nhận diện món ăn. Chưa có dữ liệu dinh dưỡng được kiểm chứng để thêm vào nhật ký.</p>}
-                                        {!heroScannedDish.sure && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp, hãy chụp lại rõ hơn.</p>}
+                                        {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp, hãy chụp lại rõ hơn hoặc chọn món đúng bên trên.</p>}
                                         {heroScannedDish.hasNutrition && (
                                              <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">LƯU ƯỚC TÍNH VÀO NHẬT KÝ</button>
                                          )}
