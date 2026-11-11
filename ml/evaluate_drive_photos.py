@@ -45,8 +45,8 @@ def main():
                 page = service.files().list(
                     q=f"'{folder_id}' in parents and trashed = false",
                     fields="nextPageToken,files(id,name,mimeType,size)",
-                    page_size=1000,
-                    page_token=page_token,
+                    pageSize=1000,
+                    pageToken=page_token,
                 ).execute()
                 for file in page.get("files", []):
                     if file["mimeType"] not in IMAGE_MIMES:
