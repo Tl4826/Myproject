@@ -304,6 +304,9 @@ function NutriApp() {
     const [scanErr, setScanErr] = useState('');
     const [scanCandidates, setScanCandidates] = useState([]);
     const [scanOriginalPrediction, setScanOriginalPrediction] = useState(null);
+    // Store only prediction labels and probabilities, never food photos.
+    const [scanCorrections, setScanCorrections] = useState(() => load('nv_scan_corrections', []));
+    const [scanCorrectionSaved, setScanCorrectionSaved] = useState(false);
 
     const today = dayKey(new Date());
     const todayMeals = meals.filter(m => m.date === today);
@@ -484,6 +487,37 @@ function NutriApp() {
         setPlanErr(''); setEditPlan(false); notify('Đã lập lộ trình');
     };
 
+    const saveScanCorrection = (label) => {
+        if (!scanOriginalPrediction || label === scanOriginalPrediction || scanCorrectionSaved) return;
+        const record = {
+            timestamp: new Date().toISOString(),
+            predicted: scanOriginalPrediction,
+            corrected: label,
+            top3: scanCandidates.map(({ mon, do_tin_cay }) => ({ mon, do_tin_cay }))
+        };
+        try {
+            const updated = [...scanCorrections, record].slice(-500);
+            localStorage.setItem('nv_scan_corrections', JSON.stringify(updated));
+            setScanCorrections(updated);
+            setScanCorrectionSaved(true);
+            notify('Đã lưu phản hồi trên trình duyệt');
+        } catch {
+            notify('Không lưu được phản hồi trên thiết bị này');
+        }
+    };
+
+    const exportScanCorrections = () => {
+        const blob = new Blob([JSON.stringify(scanCorrections, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'nutrivn-ai-corrections.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    };
+
     const chooseScannedDish = (label) => {
         const n = NUTRITION[label];
         const candidate = scanCandidates.find(x => x.mon === label);
@@ -508,7 +542,7 @@ function NutriApp() {
         setActiveTab('home');
         if (!f.type.startsWith('image/') || f.size > 8e6) { setScanErr('Chỉ nhận file ảnh dưới 8MB'); return; }
         setScanErr(''); setHeroScanState('scanning');
-        setScanCandidates([]); setScanOriginalPrediction(null);
+        setScanCandidates([]); setScanOriginalPrediction(null); setScanCorrectionSaved(false);
         const thumb = await toThumb(f);
         try {
             let d;
@@ -694,7 +728,13 @@ function NutriApp() {
                                                          {FOOD50_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
                                                      </select>
                                                  </label>
-                                                 {heroScannedDish.manuallySelected && <p className="text-[10px] text-emerald-700 font-semibold">Đã dùng tên món bạn chọn thay cho dự đoán ban đầu của AI.</p>}
+                                                 {heroScannedDish.manuallySelected && <div className="space-y-1">
+                                                     <p className="text-[10px] text-emerald-700 font-semibold">Đã dùng tên món bạn chọn thay cho dự đoán ban đầu của AI.</p>
+                                                     <button type="button" disabled={scanCorrectionSaved} onClick={() => saveScanCorrection(FOOD50_CLASSES.find(label => (NUTRITION[label]?.[0] || label) === heroScannedDish.name) || heroScannedDish.name)}
+                                                         className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                                                         {scanCorrectionSaved ? '✓ Đã lưu phản hồi' : 'Ghi nhận AI đoán sai'}
+                                                     </button>
+                                                 </div>}
                                              </div>
                                          )}
                                          {heroScannedDish.hasNutrition && <p className="text-[10px] text-amber-700 font-semibold">Dinh dưỡng ước tính theo khẩu phần tham khảo, không suy ra được lượng ăn thực tế từ ảnh.</p>}
@@ -708,6 +748,20 @@ function NutriApp() {
                                 {scanErr && heroScanState === 'idle' && <p className="text-[10px] font-bold text-rose-600 text-center px-2">{scanErr}</p>}
                             </div>
 
+                            <div className="rounded-xl bg-emerald-900/20 px-3 py-2 text-[11px] text-white space-y-1">
+                                <p className="font-bold">Phản hồi nhận diện: {scanCorrections.length} trường hợp đã lưu trên trình duyệt này</p>
+                                <p>Chỉ lưu tên món và xác suất dự đoán, không lưu ảnh. Dữ liệu chưa được gửi cho nhóm hoặc dùng để huấn luyện tự động.</p>
+                                {scanCorrections.length > 0 && <div className="flex gap-2 flex-wrap">
+                                    <button type="button" onClick={exportScanCorrections} className="rounded-lg bg-white px-2 py-1 font-bold text-emerald-800">Xuất phản hồi JSON</button>
+                                    <button type="button" onClick={() => {
+                                        if (window.confirm('Xóa toàn bộ phản hồi AI đã lưu trên trình duyệt này?')) {
+                                            localStorage.removeItem('nv_scan_corrections');
+                                            setScanCorrections([]);
+                                            setScanCorrectionSaved(false);
+                                        }
+                                    }} className="rounded-lg border border-white/70 px-2 py-1 font-bold">Xóa phản hồi</button>
+                                </div>}
+                            </div>
                             <label className="block text-center w-full py-3.5 rounded-2xl bg-white hover:bg-emerald-50 text-emerald-800 font-black text-sm shadow-md cursor-pointer">
                                 📸 CHỌN / CHỤP ẢNH MÓN ĂN
                                 <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
