@@ -7,3 +7,10 @@ data/*
 !data/.gitkeep
 ml/models/*.pt
 ml/models/*.onnx
+
+# Staging ONNX is reconstructed from checked binary shards.
+ml/models_food100/*.onnx
+# Independent user photos and evaluation output must never be committed.
+own_photos/
+ml/own_photos/
+evaluation-results/
