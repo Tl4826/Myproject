@@ -250,8 +250,8 @@ export function AppProvider({ children }) {
         setScanCorrectionSaved(false);
     };
 
-    const handleFile = async (e) => {
-        const f = e.target.files[0]; e.target.value = '';
+    // The same prediction flow handles both gallery uploads and camera snapshots.
+    const scanImage = async (f) => {
         if (!f) return;
         navigate('/home');
         if (!f.type.startsWith('image/') || f.size > 8e6) { setScanErr('Chỉ nhận file ảnh dưới 8MB'); return; }
@@ -298,6 +298,12 @@ export function AppProvider({ children }) {
         }
     };
 
+    const handleFile = (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        return scanImage(file);
+    };
+
     const addMeal = (dish) => {
         if (!dish?.hasNutrition || !Number.isFinite(dish.calories)) {
             notify('Chưa có dữ liệu dinh dưỡng cho món này');
@@ -340,7 +346,7 @@ export function AppProvider({ children }) {
         water, setWater, workoutDone, setWorkoutDone, obErr, weeklyHistory, loggedDays, weekAvg,
         chartMax, savedWeeklyLogs, isWeeklySaved, rp, pbmi, todayWorkout, dishes, daysIn,
         totalDays, planPct, expectedW, handleSaveWeekToDevice, login, logout, handleAuthSubmit,
-        fbLogin, openProfile, saveProfile, savePlan, handleFile, addMeal, updateMealCategory,
+        fbLogin, openProfile, saveProfile, savePlan, handleFile, scanImage, addMeal, updateMealCategory,
         removeMeal,
     };
 
