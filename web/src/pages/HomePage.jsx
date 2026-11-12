@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { GOAL_LABEL, FAQ_ITEMS, FOOD50_CLASSES } from '../lib/data.js';
 import CountUp from '../components/CountUp.jsx';
 import GuideAccordion from '../components/GuideAccordion.jsx';
+import CameraCapture from '../components/CameraCapture.jsx';
 import { useApp } from '../context/AppContext.jsx';
 
 export default function HomePage() {
@@ -10,12 +12,24 @@ export default function HomePage() {
         setIsGuideOpen, profile, plan, planTw, setPlanTw, planWk, setPlanWk, planErr, setPlanErr,
         editPlan, setEditPlan, water, setWater, workoutDone, setWorkoutDone, rp, pbmi,
         todayWorkout, dishes, daysIn, totalDays, planPct, expectedW, openProfile, savePlan,
-        handleFile, addMeal, scanCandidates, scanCorrections, scanCorrectionSaved,
+        handleFile, scanImage, addMeal, scanCandidates, scanCorrections, scanCorrectionSaved,
         chooseScannedDish, saveScanCorrection, exportScanCorrections, clearScanCorrections,
     } = useApp();
+    const [cameraOpen, setCameraOpen] = useState(false);
+
+    const useCameraPhoto = file => {
+        setCameraOpen(false);
+        scanImage(file);
+    };
 
     return (
         <div className="space-y-4">
+            {cameraOpen && (
+                <CameraCapture
+                    onClose={() => setCameraOpen(false)}
+                    onUsePhoto={useCameraPhoto}
+                />
+            )}
             {isLoggedIn && <h2 className="px-1 text-lg font-black text-slate-800">Xin chào, <span className="text-emerald-600">{userEmail.split('@')[0]}</span> 👋</h2>}
             <GuideAccordion isOpen={isGuideOpen} onToggle={() => setIsGuideOpen(open => !open)} />
             <section className="bg-gradient-to-b from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-emerald-500">
@@ -24,7 +38,7 @@ export default function HomePage() {
                         📸 TÍNH NĂNG CHÍNH
                     </span>
                     <h3 className="text-xl font-black">QUÉT MÓN ĂN VIỆT BẰNG AI</h3>
-                    <p className="text-xs text-emerald-100">Tải ảnh món ăn để AI nhận diện; dinh dưỡng hiển thị khi có dữ liệu</p>
+                    <p className="text-xs text-emerald-100">Chụp ảnh ngay trên ứng dụng hoặc chọn từ thư viện để AI nhận diện món ăn</p>
                 </div>
 
                 <div className="bg-white text-slate-900 rounded-2xl p-3 shadow-md space-y-3">
@@ -108,10 +122,17 @@ export default function HomePage() {
                         </div>
                     )}
                 </div>
-                <label className="block text-center w-full py-3.5 rounded-2xl bg-white hover:bg-emerald-50 text-emerald-800 font-black text-sm shadow-md cursor-pointer">
-                    📸 CHỌN / CHỤP ẢNH MÓN ĂN
-                    <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
-                </label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => setCameraOpen(true)}
+                        disabled={heroScanState === 'scanning'}
+                        className="min-h-12 rounded-2xl bg-white px-4 py-3 text-sm font-black text-emerald-800 shadow-md hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60">
+                        📷 CHỤP ẢNH MÓN ĂN
+                    </button>
+                    <label className={`min-h-12 rounded-2xl bg-emerald-800/80 px-4 py-3 text-center text-sm font-black text-white shadow-md hover:bg-emerald-900 ${heroScanState === 'scanning' ? 'pointer-events-none opacity-60' : 'cursor-pointer'}`}>
+                        🖼️ CHỌN ẢNH TỪ THƯ VIỆN
+                        <input type="file" accept="image/*" onChange={handleFile} disabled={heroScanState === 'scanning'} className="sr-only" aria-label="Chọn ảnh món ăn từ thư viện" />
+                    </label>
+                </div>
             </section>
 
             {/* Daily Calorie Budget Progress */}
