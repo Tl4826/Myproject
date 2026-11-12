@@ -1,4 +1,16 @@
-# Train 100 dishes for Myproject (Kaggle)
+# Train 100 dishes for Myproject (Kaggle or Google Colab)
+
+## Google Colab (recommended for current run)
+
+Open [05_train_food_100_colab.ipynb](notebooks/05_train_food_100_colab.ipynb) or
+[Open directly in Colab](https://colab.research.google.com/github/Tl4826/Myproject/blob/feature/food100-training/ml/notebooks/05_train_food_100_colab.ipynb).
+Choose **Runtime → Change runtime type → T4 GPU** and **Runtime → Run all**.
+The notebook mounts Google Drive and fetches public dataset
+`quandang/vietnamese-foods` using KaggleHub; fallback options are a Drive ZIP or an
+already-extracted Drive folder. Food-101 is downloaded automatically through
+Torchvision. The trained checkpoints, metrics, ONNX model and final ZIP are written
+to `MyDrive/Myproject_food100/`. The current production model is not changed.
+
 
 **Target:** 30 Vietnamese Foods classes + 70 Food-101 classes = **100 dish labels**.
 This adds **50** Food-101 classes to the previously selected 50 (20 Food-101 + 30 Vietnamese).
