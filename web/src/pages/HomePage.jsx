@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GOAL_LABEL, FAQ_ITEMS, FOOD50_CLASSES } from '../lib/data.js';
+import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES } from '../lib/data.js';
 import CountUp from '../components/CountUp.jsx';
 import GuideAccordion from '../components/GuideAccordion.jsx';
 import CameraCapture from '../components/CameraCapture.jsx';
@@ -37,7 +37,7 @@ export default function HomePage() {
                     <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
                         📸 TÍNH NĂNG CHÍNH
                     </span>
-                    <h3 className="text-xl font-black">QUÉT MÓN ĂN VIỆT BẰNG AI</h3>
+                    <h3 className="text-xl font-black">QUÉT 100 MÓN ĂN BẰNG AI</h3>
                     <p className="text-xs text-emerald-100">Chụp ảnh ngay trên ứng dụng hoặc chọn từ thư viện để AI nhận diện món ăn</p>
                 </div>
 
@@ -79,11 +79,11 @@ export default function HomePage() {
                                         ))}
                                     </div>
                                     <label className="block text-[11px] font-semibold text-slate-700">
-                                        Không đúng? Chọn trong 50 món:
+                                        Không đúng? Chọn trong 100 món:
                                         <select value="" onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
                                             className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
                                             <option value="">-- Chọn tên món đúng --</option>
-                                            {FOOD50_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
+                                            {FOOD_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
                                         </select>
                                     </label>
                                     {heroScannedDish.manuallySelected && (
