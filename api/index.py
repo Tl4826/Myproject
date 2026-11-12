@@ -3,9 +3,9 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "ml" / "service"))
+sys.path.insert(0, str(ROOT))
 
-from app import app as _service_app  # noqa: E402
+from ml.service.app import app as _service_app  # noqa: E402
 
 
 class StripApiPrefix:
