@@ -1,7 +1,7 @@
 // ===== CẤU HÌNH =====
 export const USE_DEMO = false;                     // true: demo 1 món (chưa có backend) | false: gọi API /predict của Thanh
 
-export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');   // API /predict của Thanh, cấu hình trong .env
+export const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');   // API /predict của Thanh, cấu hình trong .env
 
 export const UPLOAD_FIELD = 'file';               // tên field ảnh trong FastAPI (đổi nếu khác)
 
@@ -25,11 +25,17 @@ export const glassInput = 'w-full px-4 py-3 bg-white/15 border border-white/40 r
 export const MEAL_TYPES = [['breakfast', '🌅 Bữa sáng'], ['lunch', '☀️ Bữa trưa'], ['afternoon', '🍰 Ăn xế'], ['dinner', '🌙 Bữa tối'], ['snack', '🍿 Ăn vặt']];
 
 // SỐ TẠM / 1 khẩu phần: [tên, kcal, protein, carbs, fat] -> thay bằng Bảng TPDD Việt Nam
+// Original 50-class vocabulary; must match the ONNX model's labels.
+export const FOOD50_CLASSES = ["pizza","hamburger","sushi","ramen","fried_rice","french_fries","caesar_salad","omelette","grilled_cheese_sandwich","steak","spaghetti_bolognese","lasagna","pancakes","waffles","donuts","ice_cream","chicken_wings","french_onion_soup","grilled_salmon","greek_salad","Banh beo","Banh bot loc","Banh can","Banh canh","Banh chung","Banh cuon","Banh duc","Banh gio","Banh khot","Banh mi","Banh pia","Banh tet","Banh trang nuong","Banh xeo","Bun bo Hue","Bun dau mam tom","Bun mam","Bun rieu","Bun thit nuong","Ca kho to","Canh chua","Cao lau","Chao long","Com tam","Goi cuon","Hu tieu","Mi quang","Nem chua","Pho","Xoi xeo"];
+
 export const NUTRITION = {
     phobo: ['Phở bò', 450, 28, 55, 12], comtam: ['Cơm tấm sườn', 520, 32, 58, 16], buncha: ['Bún chả', 600, 30, 70, 20],
     spring_rolls: ['Chả giò', 250, 8, 25, 13], fried_rice: ['Cơm chiên', 480, 12, 70, 16], ramen: ['Mì ramen', 550, 22, 70, 20],
     sushi: ['Sushi', 350, 15, 60, 5], pizza: ['Pizza', 540, 22, 66, 20], hamburger: ['Hamburger', 500, 25, 40, 26],
-    french_fries: ['Khoai tây chiên', 365, 4, 48, 17], caesar_salad: ['Salad Caesar', 330, 10, 14, 26], omelette: ['Trứng chiên', 190, 13, 1, 15]
+    french_fries: ['Khoai tây chiên', 365, 4, 48, 17], caesar_salad: ['Salad Caesar', 330, 10, 14, 26], omelette: ['Trứng chiên', 190, 13, 1, 15],
+    // Approximate values from existing 12-class estimates, not image portion estimates.
+    Pho: ['Phở (ước tính theo phở bò)', 450, 28, 55, 12],
+    'Com tam': ['Cơm tấm (ước tính theo cơm tấm sườn)', 520, 32, 58, 16]
 };
 
 export const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };

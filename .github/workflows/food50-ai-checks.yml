@@ -1,0 +1,40 @@
+name: Food50 AI backend checks
+
+on:
+  push:
+    branches:
+      - feature/food50-onnx-integration
+    paths:
+      - 'ml/service/**'
+      - 'ml/models/**'
+      - 'requirements.txt'
+      - '.github/workflows/food50-ai-checks.yml'
+  pull_request:
+    paths:
+      - 'ml/service/**'
+      - 'ml/models/**'
+      - 'requirements.txt'
+      - '.github/workflows/food50-ai-checks.yml'
+  workflow_dispatch:
+
+jobs:
+  food50-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      - name: Install API dependencies
+        run: python -m pip install -r requirements.txt httpx onnx pytest
+      - name: Verify model artifact
+        run: |
+          test -s ml/models/food_classifier.onnx
+          test -s ml/models/classes.json
+      - name: Run Food50 real-model API tests
+        run: python -m unittest discover -s ml/service -p 'test_food50_api.py' -v
+      - name: Test near-tie prediction warning\n        run: python -m unittest discover -s ml/service -p 'test_ambiguity_warning.py' -v\n      - name: Run legacy fake-model tests in separate process
+        run: python -m pytest ml/service/test_app.py -v

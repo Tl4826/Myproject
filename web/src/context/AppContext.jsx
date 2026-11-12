@@ -16,6 +16,14 @@ export function AppProvider({ children }) {
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
     const [scanErr, setScanErr] = useState('');
+    const [scanCandidates, setScanCandidates] = useState([]);
+    const [scanOriginalPrediction, setScanOriginalPrediction] = useState(null);
+    const [scanCorrectionSaved, setScanCorrectionSaved] = useState(false);
+    // Only save labels and probabilities; photos are never stored as corrections.
+    const [scanCorrections, setScanCorrections] = useState(() => {
+        const records = load('nv_scan_corrections', []);
+        return Array.isArray(records) ? records : [];
+    });
 
     const today = dayKey(new Date());
     const todayMeals = meals.filter(m => m.date === today);
@@ -185,12 +193,70 @@ export function AppProvider({ children }) {
         setPlanErr(''); setEditPlan(false); notify('Đã lập lộ trình');
     };
 
+    const chooseScannedDish = (label) => {
+        const n = NUTRITION[label];
+        const candidate = scanCandidates.find(item => item.mon === label);
+        setHeroScannedDish(prev => prev ? ({
+            ...prev,
+            label,
+            name: n ? n[0] : label.replace(/_/g, ' '),
+            calories: n ? n[1] : null,
+            protein: n ? n[2] : null,
+            carbs: n ? n[3] : null,
+            fat: n ? n[4] : null,
+            hasNutrition: Boolean(n),
+            conf: candidate ? Math.round(Number(candidate.do_tin_cay) * 100) : null,
+            sure: candidate ? Number(candidate.do_tin_cay) >= 0.5 : false,
+            manuallySelected: label !== scanOriginalPrediction
+        }) : null);
+        setScanCorrectionSaved(false);
+    };
+
+    const saveScanCorrection = () => {
+        if (!heroScannedDish?.manuallySelected || !scanOriginalPrediction || scanCorrectionSaved) return;
+        const record = {
+            timestamp: new Date().toISOString(),
+            predicted: scanOriginalPrediction,
+            corrected: heroScannedDish.label,
+            top3: scanCandidates.map(({ mon, do_tin_cay }) => ({ mon, do_tin_cay }))
+        };
+        try {
+            const updated = [...scanCorrections, record].slice(-500);
+            localStorage.setItem('nv_scan_corrections', JSON.stringify(updated));
+            setScanCorrections(updated);
+            setScanCorrectionSaved(true);
+            notify('Đã lưu phản hồi trên trình duyệt');
+        } catch {
+            notify('Không lưu được phản hồi trên thiết bị này');
+        }
+    };
+
+    const exportScanCorrections = () => {
+        const blob = new Blob([JSON.stringify(scanCorrections, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'nutrivn-ai-corrections.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    };
+
+    const clearScanCorrections = () => {
+        if (!window.confirm('Xóa toàn bộ phản hồi AI trên trình duyệt này?')) return;
+        localStorage.removeItem('nv_scan_corrections');
+        setScanCorrections([]);
+        setScanCorrectionSaved(false);
+    };
+
     const handleFile = async (e) => {
         const f = e.target.files[0]; e.target.value = '';
         if (!f) return;
         navigate('/home');
         if (!f.type.startsWith('image/') || f.size > 8e6) { setScanErr('Chỉ nhận file ảnh dưới 8MB'); return; }
         setScanErr(''); setHeroScanState('scanning');
+        setScanCandidates([]); setScanOriginalPrediction(null); setScanCorrectionSaved(false);
         const thumb = await toThumb(f);
         try {
             let d;
@@ -198,23 +264,45 @@ export function AppProvider({ children }) {
                 await new Promise(r => setTimeout(r, 1200));
                 d = { mon: 'phobo', do_tin_cay: 0.92, chac_chan: true };
             } else {
-                if (!API_URL) throw new Error('chưa cấu hình VITE_API_URL');
                 const fd = new FormData(); fd.append(UPLOAD_FIELD, f);
-                const r = await fetch(API_URL + '/predict', { method: 'POST', body: fd });
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                d = await r.json();
+                const response = await fetch(API_URL + '/predict', { method: 'POST', body: fd });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                d = await response.json();
             }
+            if (typeof d?.mon !== 'string' || !d.mon) throw new Error('API trả về tên món không hợp lệ');
+            const candidates = (Array.isArray(d.top3) ? d.top3 : [])
+                .filter(x => x && typeof x.mon === 'string' && Number.isFinite(Number(x.do_tin_cay)))
+                .map(x => ({ mon: x.mon, do_tin_cay: Number(x.do_tin_cay) }))
+                .slice(0, 3);
+            if (!candidates.length) candidates.push({ mon: d.mon, do_tin_cay: Number(d.do_tin_cay) || 0 });
+            setScanCandidates(candidates);
+            setScanOriginalPrediction(d.mon);
             const n = NUTRITION[d.mon];
-            if (!n) throw new Error('món "' + d.mon + '" chưa có trong bảng dinh dưỡng');
-            setHeroScannedDish({ name: n[0], calories: n[1], protein: n[2], carbs: n[3], fat: n[4], thumb, conf: Math.round(d.do_tin_cay * 100), sure: d.chac_chan });
+            setHeroScannedDish({
+                label: d.mon,
+                name: n ? n[0] : d.mon.replace(/_/g, ' '),
+                calories: n ? n[1] : null,
+                protein: n ? n[2] : null,
+                carbs: n ? n[3] : null,
+                fat: n ? n[4] : null,
+                hasNutrition: Boolean(n),
+                thumb,
+                conf: Math.round((Number(d.do_tin_cay) || 0) * 100),
+                sure: Boolean(d.chac_chan),
+                manuallySelected: false
+            });
             setHeroScanState('result');
         } catch (err) {
-            setScanErr('Không nhận diện được: ' + err.message + '. Kiểm tra API đang chạy ở ' + API_URL + ' và đã bật CORS.');
+            setScanErr('Không thể nhận diện ảnh: ' + err.message + '. Kiểm tra API tại ' + API_URL + '.');
             setHeroScanState('idle');
         }
     };
 
     const addMeal = (dish) => {
+        if (!dish?.hasNutrition || !Number.isFinite(dish.calories)) {
+            notify('Chưa có dữ liệu dinh dưỡng cho món này');
+            return;
+        }
         const newM = {
             id: Date.now().toString(),
             date: dayKey(new Date()),
@@ -241,6 +329,8 @@ export function AppProvider({ children }) {
 
     const value = {
         navigate, heroScanState, setHeroScanState, heroScannedDish, scanErr, todayMeals, sum,
+        scanCandidates, scanCorrections, scanCorrectionSaved, chooseScannedDish,
+        saveScanCorrection, exportScanCorrections, clearScanCorrections,
         totalCal, targetCal, remainingCal, progress, calorieStatus, showPw, setShowPw, toast,
         notify, rememberMe, setRememberMe, authName, setAuthName, isLoggedIn, userEmail,
         setUserEmail, isTeamOpen, setIsTeamOpen, isGuideOpen, setIsGuideOpen, isOnboardOpen,

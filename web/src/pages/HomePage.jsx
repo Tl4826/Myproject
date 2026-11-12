@@ -1,4 +1,4 @@
-import { GOAL_LABEL, FAQ_ITEMS } from '../lib/data.js';
+import { GOAL_LABEL, FAQ_ITEMS, FOOD50_CLASSES } from '../lib/data.js';
 import CountUp from '../components/CountUp.jsx';
 import GuideAccordion from '../components/GuideAccordion.jsx';
 import { useApp } from '../context/AppContext.jsx';
@@ -10,7 +10,8 @@ export default function HomePage() {
         setIsGuideOpen, profile, plan, planTw, setPlanTw, planWk, setPlanWk, planErr, setPlanErr,
         editPlan, setEditPlan, water, setWater, workoutDone, setWorkoutDone, rp, pbmi,
         todayWorkout, dishes, daysIn, totalDays, planPct, expectedW, openProfile, savePlan,
-        handleFile, addMeal,
+        handleFile, addMeal, scanCandidates, scanCorrections, scanCorrectionSaved,
+        chooseScannedDish, saveScanCorrection, exportScanCorrections, clearScanCorrections,
     } = useApp();
 
     return (
@@ -23,7 +24,7 @@ export default function HomePage() {
                         📸 TÍNH NĂNG CHÍNH
                     </span>
                     <h3 className="text-xl font-black">QUÉT MÓN ĂN VIỆT BẰNG AI</h3>
-                    <p className="text-xs text-emerald-100">Đưa camera vào tô/đĩa thức ăn để tính calo ngay</p>
+                    <p className="text-xs text-emerald-100">Tải ảnh món ăn để AI nhận diện; dinh dưỡng hiển thị khi có dữ liệu</p>
                 </div>
 
                 <div className="bg-white text-slate-900 rounded-2xl p-3 shadow-md space-y-3">
@@ -36,24 +37,77 @@ export default function HomePage() {
                     {heroScanState === 'scanning' && (
                         <div className="py-5 text-center space-y-2">
                             <div className="text-3xl animate-bounce">🤖</div>
-                            <p className="text-xs font-extrabold text-emerald-800 animate-pulse">Đang quét dinh dưỡng món ăn...</p>
+                            <p className="text-xs font-extrabold text-emerald-800 animate-pulse">Đang nhận diện món ăn...</p>
                         </div>
                     )}
                     {heroScanState === 'result' && heroScannedDish && (
                         <div className="space-y-2">
                             {heroScannedDish.thumb && <img src={heroScannedDish.thumb} alt="" className="w-full h-28 object-cover rounded-xl" />}
-                            <div className="flex justify-between items-center text-xs">
+                            <div className="flex justify-between items-center text-xs gap-2">
                                 <span className="font-extrabold text-slate-900">{heroScannedDish.name}</span>
-                                <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{heroScannedDish.calories} kcal</span>
+                                <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                    {heroScannedDish.hasNutrition ? `${heroScannedDish.calories} kcal` : 'Chưa có dữ liệu kcal'}
+                                </span>
                             </div>
-                            <div className="text-[10px] text-slate-500 font-bold">P:{heroScannedDish.protein}g C:{heroScannedDish.carbs}g F:{heroScannedDish.fat}g • Độ tin cậy {heroScannedDish.conf}%</div>
-                            {!heroScannedDish.sure && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp, hãy chụp lại rõ hơn.</p>}
-                            <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }} className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">THÊM VÀO NHẬT KÝ</button>
+                            <div className="text-[10px] text-slate-500 font-bold">
+                                {heroScannedDish.hasNutrition && `P:${heroScannedDish.protein}g C:${heroScannedDish.carbs}g F:${heroScannedDish.fat}g • `}
+                                {heroScannedDish.conf == null ? 'Món do bạn chọn (không có xác suất AI)' : `Độ tin cậy nhận diện ${heroScannedDish.conf}%`}
+                            </div>
+                            {!!scanCandidates.length && (
+                                <div className="rounded-xl bg-slate-50 p-2 space-y-2">
+                                    <p className="text-[11px] font-bold text-slate-700">Top 3 dự đoán — chọn món đúng nếu AI nhầm:</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {scanCandidates.map((candidate, i) => (
+                                            <button key={candidate.mon} type="button" onClick={() => chooseScannedDish(candidate.mon)}
+                                                className="rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-50">
+                                                {i + 1}. {candidate.mon} ({Math.round(candidate.do_tin_cay * 100)}%)
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <label className="block text-[11px] font-semibold text-slate-700">
+                                        Không đúng? Chọn trong 50 món:
+                                        <select value="" onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
+                                            className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
+                                            <option value="">-- Chọn tên món đúng --</option>
+                                            {FOOD50_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
+                                        </select>
+                                    </label>
+                                    {heroScannedDish.manuallySelected && (
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-emerald-700 font-semibold">Đã dùng tên món bạn chọn thay cho dự đoán ban đầu của AI.</p>
+                                            <button type="button" disabled={scanCorrectionSaved} onClick={saveScanCorrection}
+                                                className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                                                {scanCorrectionSaved ? '✓ Đã lưu phản hồi' : 'Ghi nhận AI đoán sai'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {heroScannedDish.hasNutrition
+                                ? <p className="text-[10px] text-amber-700 font-semibold">Dinh dưỡng ước tính theo khẩu phần tham khảo, không suy ra lượng ăn thực tế từ ảnh.</p>
+                                : <p className="text-[10px] text-amber-700 font-bold">AI đã nhận diện món ăn, nhưng chưa có dữ liệu dinh dưỡng để thêm nhật ký.</p>}
+                            {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
+                            {heroScannedDish.hasNutrition && (
+                                <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }}
+                                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">
+                                    LƯU ƯỚC TÍNH VÀO NHẬT KÝ
+                                </button>
+                            )}
                         </div>
                     )}
                     {scanErr && heroScanState === 'idle' && <p className="text-[10px] font-bold text-rose-600 text-center px-2">{scanErr}</p>}
                 </div>
 
+                <div className="rounded-xl bg-emerald-900/20 px-3 py-2 text-[11px] text-white space-y-1">
+                    <p className="font-bold">Phản hồi nhận diện: {scanCorrections.length} trường hợp lưu trên trình duyệt này</p>
+                    <p>Chỉ lưu tên món và xác suất; không lưu ảnh và không tự động gửi dữ liệu lên server.</p>
+                    {scanCorrections.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                            <button type="button" onClick={exportScanCorrections} className="rounded-lg bg-white px-2 py-1 font-bold text-emerald-800">Xuất phản hồi JSON</button>
+                            <button type="button" onClick={clearScanCorrections} className="rounded-lg border border-white/70 px-2 py-1 font-bold">Xóa phản hồi</button>
+                        </div>
+                    )}
+                </div>
                 <label className="block text-center w-full py-3.5 rounded-2xl bg-white hover:bg-emerald-50 text-emerald-800 font-black text-sm shadow-md cursor-pointer">
                     📸 CHỌN / CHỤP ẢNH MÓN ĂN
                     <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
