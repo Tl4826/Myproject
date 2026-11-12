@@ -6,6 +6,7 @@ Run after installing requirements.txt and assembling the model:
 If running with shards only, this script reconstructs a checked copy in temp.
 """
 import argparse
+import ast
 import json
 import os
 from pathlib import Path
@@ -67,6 +68,29 @@ def main():
     labels = load_classes(args.model_dir / "classes.json")
     if len(labels) != 100:
         raise AssertionError(f"Expected 100 classes, got {len(labels)}")
+    # Match the exact training class IDs, not merely the output dimension.
+    source = ast.parse((ROOT / "train_food_100.py").read_text(encoding="utf-8"))
+    expected_groups = ("BASE_FOOD_20", "BASE_VIETNAMESE_30", "ADDITIONAL_FOOD_50")
+    groups = {}
+    for statement in source.body:
+        if isinstance(statement, ast.Assign):
+            for target in statement.targets:
+                if isinstance(target, ast.Name) and target.id in expected_groups:
+                    groups[target.id] = ast.literal_eval(statement.value)
+    if any(group not in groups for group in expected_groups):
+        raise AssertionError("Training source does not define all three class groups")
+    expected_labels = [name for group in expected_groups for name in groups[group]]
+    if labels != expected_labels:
+        first_mismatch = next(
+            (i for i, (actual, expected) in enumerate(zip(labels, expected_labels))
+             if actual != expected),
+            min(len(labels), len(expected_labels)),
+        )
+        raise AssertionError(
+            f"Label order differs from training at index {first_mismatch}: "
+            f"model_labels={labels[first_mismatch:first_mismatch+1]}, "
+            f"training_labels={expected_labels[first_mismatch:first_mismatch+1]}"
+        )
     with tempfile.TemporaryDirectory(prefix="nutrivn-food100-check-") as directory:
         model_path = assemble_model(args.model_dir, Path(directory) / "food_classifier.onnx")
         session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
