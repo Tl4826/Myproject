@@ -1,11 +1,11 @@
-"""Evaluate the actual Food50 ONNX model on independently labeled photos.
+"""Evaluate Food50 or Food100 ONNX on independently labeled photos.
 
 Dataset layout:
   photos/
     Banh cuon/001.jpg
     Hu tieu/001.jpg
     Pho/001.jpg
-Folder names MUST exactly match ml/models/classes.json.
+Folder names MUST exactly match the selected model_dir/classes.json.
 Run from repository root:
   python ml/evaluate_real_photos.py --photos path/to/photos --out evaluation-results
 Photos are processed locally and are never uploaded or copied into the report.
@@ -22,25 +22,43 @@ import onnxruntime as ort
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 ROOT = Path(__file__).resolve().parent
-MODEL_DIR = ROOT / "models"
+MODEL_DIR = ROOT / ("models_food100" if (ROOT / "models_food100").exists() else "models")
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 
-def preprocess(path):
+def preprocess(path, class_count):
     with Image.open(path) as source:
         image = ImageOps.exif_transpose(source).convert("RGB")
+    if class_count == 100:
+        w, h = image.size
+        if w <= h:
+            new_w, new_h = 256, int(256 * h / w)
+        else:
+            new_w, new_h = int(256 * w / h), 256
+        image = image.resize((new_w, new_h), Image.Resampling.BILINEAR)
+        left, top = (new_w - 224) // 2, (new_h - 224) // 2
+        image = image.crop((left, top, left + 224, top + 224))
+    else:
         image = image.resize((224, 224), Image.Resampling.BILINEAR)
-        pixels = np.asarray(image, dtype=np.float32) / 255.0
+    pixels = np.asarray(image, dtype=np.float32) / 255.0
     return ((pixels - MEAN) / STD).transpose(2, 0, 1)[None]
 
 
 def evaluate(photos, out, model_dir):
+    model_dir = Path(model_dir)
     labels_data = json.loads((model_dir / "classes.json").read_text(encoding="utf-8"))
-    classes = labels_data["classes"] if isinstance(labels_data, dict) else labels_data
-    if len(classes) != 50 or len(set(classes)) != 50:
-        raise ValueError("Expected 50 unique Food50 class labels")
+    if isinstance(labels_data, list):
+        classes = labels_data
+    elif isinstance(labels_data, dict) and isinstance(labels_data.get("classes"), list):
+        classes = labels_data["classes"]
+    elif isinstance(labels_data, dict) and all(str(k).isdigit() for k in labels_data):
+        classes = [v for _, v in sorted(labels_data.items(), key=lambda kv: int(kv[0]))]
+    else:
+        raise ValueError("Unsupported classes.json format")
+    if len(classes) not in (50, 100) or len(set(classes)) != len(classes):
+        raise ValueError("Expected 50 or 100 unique class labels")
     if not photos.is_dir():
         raise ValueError(f"Photo folder does not exist: {photos}")
     unknown = sorted(p.name for p in photos.iterdir() if p.is_dir() and p.name not in classes)
@@ -51,12 +69,17 @@ def evaluate(photos, out, model_dir):
     if not items:
         raise ValueError("No labeled images found. Use photos/<exact class label>/image.jpg")
 
-    session = ort.InferenceSession(str(model_dir / "food_classifier.onnx"), providers=["CPUExecutionProvider"])
+    model_file = model_dir / "food_classifier.onnx"
+    if not model_file.exists() and (model_dir / "parts").is_dir():
+        import tempfile
+        from ml.assemble_food100 import assemble_model
+        model_file = assemble_model(model_dir, Path(tempfile.gettempdir()) / "nutrivn-food100" / "food_classifier.onnx")
+    session = ort.InferenceSession(str(model_file), providers=["CPUExecutionProvider"])
     input_name = session.get_inputs()[0].name
     rows, failures = [], []
     for path, actual in items:
         try:
-            logits = np.asarray(session.run(None, {input_name: preprocess(path)})[0]).reshape(-1)
+            logits = np.asarray(session.run(None, {input_name: preprocess(path, len(classes))})[0]).reshape(-1)
             if logits.size != len(classes) or not np.all(np.isfinite(logits)):
                 raise ValueError("Unexpected or non-finite model output")
             probabilities = np.exp(logits - logits.max())
@@ -110,11 +133,11 @@ def evaluate(photos, out, model_dir):
         "note": "Results apply only to supplied labeled photos; they are not training/test dataset accuracy.",
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"Evaluated {len(rows)} photos across {len(class_results)}/50 classes; skipped {len(failures)}")
+    print(f"Evaluated {len(rows)} photos across {len(class_results)}/{len(classes)} classes; skipped {len(failures)}")
     print(f"Top-1 accuracy: {summary['top1_accuracy']:.1%}; Top-3 accuracy: {summary['top3_accuracy']:.1%}")
     print(f"Reports: {out / 'summary.json'} and {out / 'predictions.csv'}")
-    if len(class_results) < 50:
-        print("Warning: not all 50 classes are represented; results are not a full Food50 evaluation.")
+    if len(class_results) < len(classes):
+        print(f"Warning: only {len(class_results)} of {len(classes)} classes were evaluated; this is not a full-model accuracy estimate.")
 
 
 if __name__ == "__main__":

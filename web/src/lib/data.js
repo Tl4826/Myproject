@@ -14,7 +14,7 @@ export const FRUITS = [['🍎', 6, 10, 64, 60], ['🥑', 80, 8, 72, -60], ['🍜
 export const tilt = e => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty('--mx', ((e.clientX - r.left) / r.width - .5) * 16); e.currentTarget.style.setProperty('--my', -((e.clientY - r.top) / r.height - .5) * 10); };
 
 export const GUIDE = [
-    ['📸', 'Quét món ăn', 'Bấm "Chọn / chụp ảnh món ăn" ở thẻ xanh bên dưới và chọn ảnh bữa ăn của bạn.'],
+    ['📸', 'Quét món ăn', 'Bấm "Chụp ảnh món ăn" để dùng camera, hoặc "Chọn ảnh từ thư viện" để tải ảnh có sẵn.'],
     ['➕', 'Thêm vào nhật ký', 'Xem calo và macro rồi bấm "Thêm vào nhật ký". Món tự xếp vào bữa theo giờ, bạn có thể đổi bữa hoặc xoá trong tab 📖 Nhật ký.'],
     ['🎯', 'Đặt mục tiêu calo', 'Nhập chỉ số cơ thể ở mục 🧮 Máy Tính Dinh Dưỡng, mục tiêu calo mỗi ngày sẽ tự cập nhật.'],
     ['📊', 'Xem báo cáo', 'Qua tab 📊 Báo cáo để xem 7 ngày gần nhất và lưu báo cáo tuần.']
@@ -25,8 +25,8 @@ export const glassInput = 'w-full px-4 py-3 bg-white/15 border border-white/40 r
 export const MEAL_TYPES = [['breakfast', '🌅 Bữa sáng'], ['lunch', '☀️ Bữa trưa'], ['afternoon', '🍰 Ăn xế'], ['dinner', '🌙 Bữa tối'], ['snack', '🍿 Ăn vặt']];
 
 // SỐ TẠM / 1 khẩu phần: [tên, kcal, protein, carbs, fat] -> thay bằng Bảng TPDD Việt Nam
-// Original 50-class vocabulary; must match the ONNX model's labels.
-export const FOOD50_CLASSES = ["pizza","hamburger","sushi","ramen","fried_rice","french_fries","caesar_salad","omelette","grilled_cheese_sandwich","steak","spaghetti_bolognese","lasagna","pancakes","waffles","donuts","ice_cream","chicken_wings","french_onion_soup","grilled_salmon","greek_salad","Banh beo","Banh bot loc","Banh can","Banh canh","Banh chung","Banh cuon","Banh duc","Banh gio","Banh khot","Banh mi","Banh pia","Banh tet","Banh trang nuong","Banh xeo","Bun bo Hue","Bun dau mam tom","Bun mam","Bun rieu","Bun thit nuong","Ca kho to","Canh chua","Cao lau","Chao long","Com tam","Goi cuon","Hu tieu","Mi quang","Nem chua","Pho","Xoi xeo"];
+// Food100 class vocabulary; label order matches the ONNX model's output.
+export const FOOD_CLASSES = ["pizza","hamburger","sushi","ramen","fried_rice","french_fries","caesar_salad","omelette","grilled_cheese_sandwich","steak","spaghetti_bolognese","lasagna","pancakes","waffles","donuts","ice_cream","chicken_wings","french_onion_soup","grilled_salmon","greek_salad","Banh beo","Banh bot loc","Banh can","Banh canh","Banh chung","Banh cuon","Banh duc","Banh gio","Banh khot","Banh mi","Banh pia","Banh tet","Banh trang nuong","Banh xeo","Bun bo Hue","Bun dau mam tom","Bun mam","Bun rieu","Bun thit nuong","Ca kho to","Canh chua","Cao lau","Chao long","Com tam","Goi cuon","Hu tieu","Mi quang","Nem chua","Pho","Xoi xeo","apple_pie","baby_back_ribs","baklava","beef_carpaccio","beef_tartare","bibimbap","breakfast_burrito","bruschetta","cannoli","caprese_salad","carrot_cake","cheesecake","chicken_curry","chicken_quesadilla","chocolate_cake","chocolate_mousse","churros","clam_chowder","club_sandwich","crab_cakes","creme_brulee","croque_madame","cup_cakes","dumplings","edamame","eggs_benedict","falafel","fish_and_chips","french_toast","frozen_yogurt","garlic_bread","gnocchi","gyoza","hot_and_sour_soup","hot_dog","hummus","lobster_roll_sandwich","macaroni_and_cheese","macarons","miso_soup","nachos","onion_rings","pad_thai","paella","peking_duck","poutine","ravioli","tacos","takoyaki","tiramisu"];
 
 export const NUTRITION = {
     phobo: ['Phở bò', 450, 28, 55, 12], comtam: ['Cơm tấm sườn', 520, 32, 58, 16], buncha: ['Bún chả', 600, 30, 70, 20],
