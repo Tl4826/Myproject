@@ -284,7 +284,8 @@ def load_old_classes(path):
 
 def model_for_training(old_checkpoint=None, old_classes=None):
     model = models.efficientnet_b0(
-        weights=models.EfficientNet_B0_Weights.DEFAULT
+        weights=(None if old_checkpoint is not None
+                 else models.EfficientNet_B0_Weights.DEFAULT)
     )
     features = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(features, 100)
