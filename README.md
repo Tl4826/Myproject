@@ -1,83 +1,124 @@
-# Food Nutrition AI (NutriVN)
+# Food Nutrition AI — NutriVN
 
-Web app: take or upload a meal photo, the model recognises the dish (12 dishes), the app shows calories and nutrition, saves the meal to a daily diary and tracks the calories left for the day.
-One repository for two VNUK courses: **Artificial Intelligence** (final project, 40%) and **Web Design and Development - CSB25022** (final project, 50%).
+> VNUK course project: image-based food recognition, a nutrition-estimate interface, a daily meal diary, and an experimental AI model service.
 
-## Product scope (agreed with lecturers)
+## Submission snapshot (13 November 2026)
 
-- **Main tool (first page):** photo -> dish -> calories and nutrition.
-- **Secondary tools (navigation bar):**
-  - Daily calorie target from weight, height, age, sex, daily activity and goal (maintain, lose weight, gain weight, build muscle). Uses existing formulas (Mifflin-St Jeor BMR x activity factor), no model needed.
-  - Daily diary: meals eaten today and calories left.
-  - Daily tracking over time.
-- **Recognised dishes (12):** phobo, buncha, comtam (Vietnamese) and spring_rolls, fried_rice, ramen, sushi, pizza, hamburger, french_fries, caesar_salad, omelette (from Food-101).
-- Portions use default values per dish, so calories are estimates (see Limitations).
+- **Repository:** https://github.com/Tl4826/Myproject
+- **Default / grading branch:** `feature/web-vite` (not `main` or `master`). GitHub's default-branch clone checks out this branch.
+- **AI:** a **100-class ONNX food classifier** (30 Vietnamese classes + 70 Food-101 classes), integrated via FastAPI, with a 50-class rollback option.
+- **Web:** React + Vite, camera capture and image upload, top-3 prediction review, diary, reports and onboarding UI.
+- **Important distinction:** The API is an interface *to our trained model*, not a paid third-party food-recognition API.
+- **Current limitations:** Many of the 100 labels do not yet have nutrition estimates; web login is a browser-only prototype rather than verified server authentication; diary/profile persistence is browser-local (not MySQL in this branch). See below.
 
-## Structure
+## Run the project locally
 
-| Folder / file | Purpose | Course |
-|---|---|---|
-| `ml/notebooks/` | Training and evaluation notebooks (`01` 10-dish baseline, `02` final 12-dish model) | AI |
-| `ml/service/` | Model service: FastAPI + ONNX Runtime, `POST /predict` | AI / Web |
-| `ml/models/` | Exported model `food_classifier.onnx` and `classes.json` | AI |
-| `data/` | Local sample images only (full datasets live on Colab) | AI |
-| `web/` | Frontend (Vite, Tailwind, JavaScript) | Web |
-| `api/` | Backend routes (Node.js, deployed on Vercel) and database access | Web |
-| `docs/` | Wireframes, plan, ERD, sprint self-reports, deployment notes | Both |
-| `Dockerfile` | Builds the model service for Render | AI / Web |
-| `vercel.json` | Vercel build configuration | Web |
+Prerequisites: Python 3.11, Node.js 20+, and enough disk space for ONNX Runtime and the ONNX files. Run commands from the **repository root** unless stated otherwise.
 
-## Architecture
+### 1. AI inference API
 
-Frontend (`web/`) -> backend (`api/`, `POST /api/analyze`) -> model service (`POST /predict`) -> nutrition lookup -> response. Meals are stored in MySQL.
+NaNbash
+python -m venv .venv
+# Activate the environment: Windows: .venv\Scripts\activate | macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt
+python ml/assemble_food100.py
+python -m uvicorn ml.service.app:app --host 127.0.0.1 --port 8000
+```
 
-- Model service: deployed on Render (`ml/service`, built by `Dockerfile` from branch `master`). Do not move or rename `ml/` or `Dockerfile` without updating Render.
-- Web and backend: deployed on Vercel.
-- The backend reads the model service address from the `MODEL_URL` environment variable.
+Open http://127.0.0.1:8000/health for the list of model classes, or http://127.0.0.1:8000/docs for the FastAPI interactive documentation. The photo classifier is `POST /predict` with multipart field `file`. It returns the predicted dish, confidence, top three possibilities and uncertainty flags. A classification does **not** measure the photo's portion size.
 
-## Team
+On first startup the API can reconstruct the 100-class model from checksum-verified shards under `ml/models_food100/parts/`. The original 50-class model remains in `ml/models/`. To use that fallback, set `FOOD_MODEL_VARIANT=50` **before** starting the API.
 
-| Member | Role |
+### 2. React frontend
+
+Open another terminal:
+
+NaNbash
+cd web
+npm ci
+# Copy .env.example to .env.development.local and set VITE_API_URL=http://localhost:8000
+npm run dev
+```
+
+Open the URL reported by Vite (normally http://localhost:5173). Camera access works on localhost or secure HTTPS pages, subject to browser permission. The app will call the local FastAPI service if `VITE_API_URL` points to it.
+
+**Demo login caveat:** The current browser-only sign-in form does not authenticate credentials against a backend and must not be presented as a secure account system. Data stored in localStorage/sessionStorage is per browser/device. Do not enter a real password into the demo.
+
+### 3. Tests / grading checks
+
+NaNbash
+python ml/assemble_food100.py
+python ml/check_model_100.py
+python -m unittest discover -s ml/service -p 'test_food100_api.py' -v
+npm --prefix web ci
+npm --prefix web run build
+```
+
+These are test commands, not a claim that they have been executed successfully in this update. A teacher should run the local tests and verify a real-food photo end-to-end. Blank/non-food images are not meaningful evidence of recognition accuracy.
+
+## Project architecture
+
+NaNtext
+Browser (React / Vite)
+    |  image upload or camera photo
+    v
+FastAPI /predict (ml/service/app.py)
+    |  ONNX Runtime inference
+    v
+100-class food model -> predicted label + top-3 + confidence
+    |
+    v
+Frontend nutrition lookup (web/src/lib/data.js; limited estimates)
+    |
+    v
+Browser-local diary and report
+```
+
+- `web/` — React/Vite source, camera, diary, reports, onboarding UI.
+- `api/index.py` — Vercel entry point wrapping the same FastAPI service.
+- `ml/service/` — image preprocessing, ONNX inference, API route, and API tests.
+- `ml/models_food100/` — ONNX model shards, labels, checksum and rebuild instructions.
+- `ml/models/` — retained 50-class model fallback.
+- `ml/notebooks/`, `ml/train_food_100.py` — model training code and notebooks.
+- `docs/VERCEL.md` — Vercel configuration and deployment checks.
+
+## Deployment
+
+The repo includes `vercel.json` to build `web/` and deploy the Python API under `/api/*`, including `GET /api/health` and `POST /api/predict`. The browser build uses `VITE_API_URL=/api` in `web/.env.production`. **A GitHub push alone does not prove deployment works**; check the actual hosted `/api/health`, a real image scan, and Vercel function logs. Resource limits/cold starts can affect ONNX inference. Full deployment details: [docs/VERCEL.md](docs/VERCEL.md).
+
+## What is and is not integrated yet
+
+| Component | Current state on `feature/web-vite` |
 |---|---|
-| Thanh | Dish recognition model, model service, deployment of the model service, repo owner and pull request review |
-| Huy | Frontend (Tailwind, JavaScript, responsive). AI course: nutrition table and portion estimation, API comparison |
-| Tuấn Anh | Backend (Node.js), MySQL database, nutrition data. AI course: data collection (dish photos) |
-| Hồng | Report, README, wireframes (Figma), plan and issues, self-report collection; supports the backend and database |
+| 100-dish ONNX model | Files checked in as verified shards; service code selects Food100 by default |
+| Image recognition API | FastAPI `/predict` exists; end-to-end production success still needs testing |
+| Camera and photo upload | Present in frontend |
+| Nutrition and protein estimates | Local lookup; currently available for only a subset of labels, **not** all 100 |
+| Login / registration | Browser-only prototype; no server credential verification |
+| Meal diary / reports | Browser localStorage; not synchronized between devices |
+| Node/MySQL backend | Team implementation exists on separate `feature/tuananh-backend` branch; **not merged into this grading branch** |
 
-## How to run
+Do not state that the active branch has secure authentication, a connected MySQL database, or complete nutrition data for 100 dishes until those features are integrated and tested. The Node backend should be reviewed and integrated in a separate PR, not copied over the working Vercel/FastAPI setup without validation.
 
-1. **Model training (AI):** open `ml/notebooks/02_train_food_vn.ipynb` in Google Colab (GPU runtime) and run all cells. `01_train_food_classifier.ipynb` is the 10-dish baseline.
-2. **Model service (local):**
-   ```
-   cd ml/service
-   python -m venv .venv
-   .venv\Scripts\python -m pip install -r requirements.txt   # Windows PowerShell
-   .venv\Scripts\python -m uvicorn app:app --port 8000
-   ```
-   Needs `ml/models/food_classifier.onnx` and `classes.json`. Open `http://localhost:8000/docs` to test. Windows also needs the Microsoft Visual C++ Redistributable (x64).
-3. **Web and backend:** see `docs/VERCEL.md`. Set `MODEL_URL` to the model service address and add the MySQL connection variables in Vercel.
+## AI training and evaluation
 
-## Rules
+- Food100 training instructions and dataset sources: [ml/TRAIN_100.md](ml/TRAIN_100.md).
+- Exported model information and exact checksum: [ml/models_food100/README.md](ml/models_food100/README.md).
+- Real-world photo evaluation procedure: [ml/REAL_PHOTO_EVALUATION.md](ml/REAL_PHOTO_EVALUATION.md).
+- The training workflow reported a held-out test accuracy around **83.83%** (22,540 test images; macro-F1 around **0.839**). This comes from the recorded Colab run, **not a new verification performed by this README update**. Include the original saved metrics/artifacts when presenting it as an assessed result.
+- Accuracy on held-out dataset images does not guarantee accuracy on new phone photos; ask users to confirm uncertain predictions.
 
-- One branch per feature (`feature/<name>`), small commits, every pull request linked to an issue, reviewed by another member. The default branch is `master`.
-- Do not commit secrets (database passwords, API keys); use environment variables.
-- Every member writes a self-report for each of the 5 sprints (missing or late: -10% group mark).
-- Cite every dataset, paper and borrowed code (VNUK plagiarism policy).
+## Team responsibilities (original plan)
 
-## Datasets and sources
+| Member | Responsibility |
+|---|---|
+| Thanh | Food classification model, model service, inference/deployment |
+| Huy | Frontend, UI/UX and nutrition lookup |
+| Tuấn Anh | Node backend and database work (separate branch) |
+| Hồng | Reporting, wireframes, planning, issues, self-reports |
 
-- **Food-101** (Bossard, Guillaumin, Van Gool, ECCV 2014) - https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/ : 9 of the 12 dishes.
-- **Own Vietnamese dish photos** (phobo, buncha, comtam), collected by the team - [count per class and photographer to be filled].
-- **Nutrition values:** each dish and its source are listed in the nutrition table (`nutrition.json`); every row must cite its source and the portion used.
+## Caveats and academic integrity
 
-## Results (model)
+Nutrition values are approximations per standard serving; a single image cannot provide reliably measured calories, portion weight or protein. Predictions can be wrong or uncertain. Do not use the prototype for medical advice. Cite all datasets, code and papers in the final report; see Food-101 and EfficientNet references in [ml/TRAIN_100.md](ml/TRAIN_100.md).
 
-- 12 classes, EfficientNet-B0 fine-tuned with PyTorch, exported to ONNX.
-- Test accuracy 0.907, macro F1 0.842 on the test split (Vietnamese part of this split is small).
-- Extra test on 63 own Vietnamese photos: [to be confirmed after checking for overlap with training photos].
-
-## Limitations
-
-- Only 12 dishes; 9 of them are not Vietnamese. Vietnamese dishes have far fewer training photos, so the model is less confident on them. More Vietnamese photos is the main next step.
-- Portions are defaults per dish, so calories are estimates.
-- The model returns a confidence score, which is not the same as accuracy.
+No passwords, personal photos, API keys, database URLs or `.env` secrets should be committed to this public repository.
