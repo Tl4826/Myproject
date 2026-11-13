@@ -17,7 +17,7 @@ Prerequisites: Python 3.11, Node.js 20+, and enough disk space for ONNX Runtime 
 
 ### 1. AI inference API
 
-NaNbash
+```bash
 python -m venv .venv
 # Activate the environment: Windows: .venv\Scripts\activate | macOS/Linux: source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -33,7 +33,7 @@ On first startup the API can reconstruct the 100-class model from checksum-verif
 
 Open another terminal:
 
-NaNbash
+```bash
 cd web
 npm ci
 # Copy .env.example to .env.development.local and set VITE_API_URL=http://localhost:8000
@@ -46,7 +46,7 @@ Open the URL reported by Vite (normally http://localhost:5173). Camera access wo
 
 ### 3. Tests / grading checks
 
-NaNbash
+```bash
 python ml/assemble_food100.py
 python ml/check_model_100.py
 python -m unittest discover -s ml/service -p 'test_food100_api.py' -v
@@ -58,7 +58,7 @@ These are test commands, not a claim that they have been executed successfully i
 
 ## Project architecture
 
-NaNtext
+```text
 Browser (React / Vite)
     |  image upload or camera photo
     v
