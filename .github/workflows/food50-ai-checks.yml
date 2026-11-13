@@ -36,5 +36,7 @@ jobs:
           test -s ml/models/classes.json
       - name: Run Food50 real-model API tests
         run: python -m unittest discover -s ml/service -p 'test_food50_api.py' -v
-      - name: Test near-tie prediction warning\n        run: python -m unittest discover -s ml/service -p 'test_ambiguity_warning.py' -v\n      - name: Run legacy fake-model tests in separate process
+      - name: Test near-tie prediction warning
+        run: python -m unittest discover -s ml/service -p 'test_ambiguity_warning.py' -v
+      - name: Run legacy fake-model tests in separate process
         run: python -m pytest ml/service/test_app.py -v
