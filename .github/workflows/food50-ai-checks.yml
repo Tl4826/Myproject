@@ -21,6 +21,9 @@ jobs:
   food50-api:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      FOOD_MODEL_VARIANT: "50"
+      MODEL_DIR: ml/models
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
