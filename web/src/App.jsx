@@ -15,7 +15,7 @@ function AppRoutes() {
     const guestOnly = page => isLoggedIn ? <Navigate to="/home" replace /> : page;   // đã đăng nhập thì vào thẳng /home
 
     return (
-        <div className={`min-h-screen bg-slate-50 ${isLoggedIn ? 'pb-12' : ''}`}>
+        <div className={`min-h-screen ${isLoggedIn ? 'pb-12' : 'bg-slate-50'}`}>
             <Routes>
                 <Route path="/" element={guestOnly(<LandingPage />)} />
                 <Route path="/login" element={guestOnly(<LoginPage />)} />
