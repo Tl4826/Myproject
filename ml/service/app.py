@@ -39,6 +39,10 @@ def health():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    if file.content_type and file.content_type.lower() not in {
+        "image/jpeg", "image/png", "image/webp", "image/bmp"
+    }:
+        raise HTTPException(415, "Unsupported image type")
     data = await file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "image too large (max 8 MB)")
