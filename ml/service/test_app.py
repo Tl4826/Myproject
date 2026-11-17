@@ -30,8 +30,8 @@ def test_predict_picks_dominant_channel():
     assert r["mon"] == "a" and r["chac_chan"] and len(r["top3"]) == 3
     assert c.post("/predict", files={"file": ("x.png", png((0, 0, 255)), "image/png")}).json()["mon"] == "c"
 
-def test_bad_file_is_400():
-    assert c.post("/predict", files={"file": ("x.txt", b"hello", "text/plain")}).status_code == 400
+def test_bad_file_is_415():
+    assert c.post("/predict", files={"file": ("x.txt", b"hello", "text/plain")}).status_code == 415
 
 def test_health_lists_classes():
     assert c.get("/health").json()["classes"] == CLASSES
