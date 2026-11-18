@@ -1,20 +1,68 @@
-# Social login database — NutriVN (STAGED)
+# NutriVN: Neon PostgreSQL and verified social sign-in
 
-**Current state:** Database schema and server handler prepared; not activated. The existing production website, GitHub branch main, Huy's frontend, and Python AI API are not modified by this staging directory.
+## Current deployment status (2026-11-18)
 
-## Steps to activate
-1. In Vercel → Storage → Marketplace, connect **Neon Postgres** to project `nutrivn-myproject`, with `DATABASE_URL` in Production and Preview. Use a separate Preview database branch if possible.
-2. Execute `database/schema.sql` in Neon's SQL Editor. Confirm tables `social_users`, `social_sessions`, `user_diary_entries` exist.
-3. Set server-only Vercel environment variables `GOOGLE_CLIENT_ID`, `FACEBOOK_APP_ID`, and `FACEBOOK_APP_SECRET`. Configure Google OAuth allowed origin and Facebook Login app domain to match the Production URL. Never prefix secrets with `VITE_`, commit keys, or paste them in chat.
-4. Install `@neondatabase/serverless@1.2.1` in the Vercel backend Node package and move `database/social-auth-handler.mjs` to a deployed Node function. **Important:** `vercel.json` currently rewrites `/api/*` to Python `/api/index.py`; add an explicit social-auth rewrite before that catch-all (or separate the auth hostname).
-5. Change Google/Facebook UI callbacks to send the real Google ID token / Facebook access token to the auth endpoint; call the app login handler **only after** a successful server response. Remove the current unverified JWT decode and the client-only Facebook profile-based login. Check the existing cookie session on reload and clear it on logout.
-6. Add authenticated endpoints to sync diary entries by server-side session user ID, rather than trusting client-supplied email or ID. Existing browser-wide `nv_meals` storage is **not** account isolated; do not claim that the database already solves this until the diary sync migration is complete.
-7. Run integration tests for wrong audience, invalid signatures, wrong Facebook app, duplicate login, two different providers with same email, session expiry, cross-account diary isolation, and logout. Then activate and test Production.
+- Neon project `nutrivn-myproject` (Postgres 17), database `nutrivn`, main branch.
+- Production Vercel project `nutrivn-myproject` has encrypted server-only `DATABASE_URL`.
+- SQL schema in `database/schema.sql` has been applied successfully:
+  `social_users`, `social_sessions`, `user_diary_entries`.
+- Server endpoints implemented: `/api/social-auth` (POST, GET, DELETE)
+  and `/api/diary` (GET, POST, PATCH, DELETE).
+- Frontend Google/Facebook callbacks now send provider credentials to the server
+  and only accept a returned verified account. Social diary entries are read/written
+  in Neon using the authenticated session, never a client-supplied email or user ID.
+- **Not yet live-tested:** Google/Facebook OAuth client credentials are not yet
+  configured. Authentication remains unavailable until they are configured.
+  A successful Vercel build does not prove real OAuth sign-in works.
 
-## Security choices
-- Identity key: provider + immutable provider subject; **never use email alone**.
-- No Facebook/Google password or OAuth access token stored in the database.
-- Short-lived opaque session cookie (HttpOnly, Secure, SameSite=Lax); only SHA-256 token hash is kept server-side.
-- No automatic account linking between Google and Facebook sharing an email.
-- Personal diary records must only be read/written using identity derived from the authenticated server session.
-- The staged handler does not automatically create tables and fails closed if database/OAuth configuration is missing.
+## Configure Google and Facebook (required)
+
+Set these **Vercel Production environment variables**, then redeploy so Vite
+can inject the public IDs during the build:
+
+| Key | Location | Secret? |
+| --- | --- | --- |
+| `DATABASE_URL` | Server only | Already configured, do not expose |
+| `GOOGLE_CLIENT_ID` | Server | Public OAuth client identifier |
+| `VITE_GOOGLE_CLIENT_ID` | Vite build | Same public Google Client ID |
+| `FACEBOOK_APP_ID` | Server | Public app identifier |
+| `VITE_FACEBOOK_APP_ID` | Vite build | Same public Facebook App ID |
+| `FACEBOOK_APP_SECRET` | Server only | Private: never prefix `VITE_` |
+
+Configure `https://nutrivn-myproject.vercel.app` as an allowed origin
+in the Google OAuth client and configure Facebook Login for that site/domain.
+Facebook requires a valid app configuration and applicable permissions.
+
+Google ID tokens are verified against Google public signing keys and the server
+client ID. Facebook tokens are verified through the Graph debug_token endpoint
+with server-only app credentials; the /me profile ID is checked against the
+verified token user ID. The browser never decides the authenticated identity.
+
+## Data isolation
+
+- Each provider identity is keyed by provider + immutable subject (no automatic
+  Google/Facebook account linking based on email).
+- Sessions are secure HttpOnly cookies; only SHA-256 session token hashes are
+  stored in the database. Passwords and social OAuth tokens are not saved.
+- Diary operations use the user derived from the server-validated session;
+  updates/deletes require matching `user_id`.
+- Social users' diary entries are persisted in Neon and isolated per account.
+- The onboarded profile and nutrition plan are still local per device; cloud
+  profile synchronization is **not** implemented.
+- The existing email/password form is **local-only demo behavior**, not a real
+  password-authenticated server account. Do not represent it as secure email auth.
+- Old browser-wide `nv_meals` data is left intact as a backup, but is not
+  blindly migrated because its owner cannot be safely determined.
+
+## Acceptance checks after OAuth setup
+
+1. Login with Google creates one social_users row; login again reuses it.
+2. Login with Facebook creates a separate provider identity.
+3. Bad signature/wrong app ID/expired provider token never creates a user.
+4. Alice cannot read, delete, or update Bob's diary entries.
+5. Logout invalidates the session; direct diary endpoint calls return 401.
+6. Save/select/edit/remove dishes and refresh the page: diary persists.
+7. Existing Python /api/health and /api/predict still work and Food100
+   predictions still offer Top-3 choices.
+
+**Never paste Google/Facebook secrets or Neon database passwords into chat or source control.**
