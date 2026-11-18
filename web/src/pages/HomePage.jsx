@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES } from '../lib/data.js';
+import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES, NUTRITION } from '../lib/data.js';
 import CountUp from '../components/CountUp.jsx';
 import GuideAccordion from '../components/GuideAccordion.jsx';
 import CameraCapture from '../components/CameraCapture.jsx';
@@ -75,7 +75,7 @@ export default function HomePage() {
                                             <button key={candidate.mon} type="button" onClick={() => chooseScannedDish(candidate.mon)}
                                                 aria-pressed={heroScannedDish.label === candidate.mon}
                                                 className={`rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-800 ${heroScannedDish.label === candidate.mon ? 'bg-emerald-100 ring-1 ring-emerald-500' : 'bg-white hover:bg-emerald-50'}`}>
-                                                {i + 1}. {candidate.mon} ({Math.round(candidate.do_tin_cay * 100)}%)
+                                                {i + 1}. {NUTRITION[candidate.mon]?.[0] || candidate.mon.replace(/_/g, ' ')} ({Math.round(candidate.do_tin_cay * 100)}%)
                                             </button>
                                         ))}
                                     </div>
@@ -84,7 +84,11 @@ export default function HomePage() {
                                         <select value={FOOD_CLASSES.includes(heroScannedDish.label) ? heroScannedDish.label : ''} onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
                                             className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
                                             <option value="">-- Chọn tên món đúng --</option>
-                                            {FOOD_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
+                                            {FOOD_CLASSES.map(label => (
+                                                <option key={label} value={label}>
+                                                    {NUTRITION[label] ? `${NUTRITION[label][0]} (${label})` : label.replace(/_/g, ' ')}
+                                                </option>
+                                            ))}
                                         </select>
                                     </label>
                                     {heroScannedDish.manuallySelected && (
@@ -103,7 +107,13 @@ export default function HomePage() {
                                 : <p className="text-[10px] text-amber-700 font-bold">Chưa có dữ liệu dinh dưỡng cho món này. Bạn vẫn có thể lưu tên món vào nhật ký; món chưa được tính vào tổng kcal.</p>}
                             {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
                             {(
-                                <button onClick={async () => { if (await addMeal(heroScannedDish)) { setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); } }}
+                                <button onClick={async () => {
+                                    const added = await addMeal(heroScannedDish);
+                                    if (added) {
+                                        setHeroScanState('idle');
+                                        notify('Đã thêm vào nhật ký');
+                                    }
+                                }}
                                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">
                                     {heroScannedDish.hasNutrition ? 'LƯU ƯỚC TÍNH VÀO NHẬT KÝ' : 'LƯU TÊN MÓN VÀO NHẬT KÝ'}
                                 </button>
@@ -277,7 +287,18 @@ export default function HomePage() {
                                     <div className="text-xs font-extrabold text-slate-800">{d.name}</div>
                                     <div className="text-[10px] font-bold text-slate-500">{d.calories} kcal · P{d.protein} C{d.carbs} F{d.fat}</div>
                                 </div>
-                                <button onClick={() => { addMeal(d); notify('Đã thêm vào nhật ký'); }} className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-2.5 py-1.5 shrink-0">+ Thêm</button>
+                                <button
+                                    onClick={() => {
+                                        const added = addMeal(d);
+
+                                        if (added) {
+                                            notify('Đã thêm vào nhật ký');
+                                        }
+                                    }}
+                                    className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-2.5 py-1.5 shrink-0"
+                                >
+                                    + Thêm
+                                </button>
                             </div>
                         )) : <p className="text-[11px] text-slate-500 font-bold">{rp.targetCal - totalCal <= 0 ? '🎉 Bạn đã đủ calo hôm nay.' : 'Calo còn lại ít, hãy chọn món nhẹ hoặc uống thêm nước.'}</p>}
                         <p className="text-[9px] text-slate-400 font-bold italic">Gợi ý theo calo còn lại hôm nay · số liệu ước lượng 1 khẩu phần</p>

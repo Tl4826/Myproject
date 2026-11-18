@@ -33,13 +33,109 @@ export const NUTRITION = {
     spring_rolls: ['Chả giò', 250, 8, 25, 13], fried_rice: ['Cơm chiên', 480, 12, 70, 16], ramen: ['Mì ramen', 550, 22, 70, 20],
     sushi: ['Sushi', 350, 15, 60, 5], pizza: ['Pizza', 540, 22, 66, 20], hamburger: ['Hamburger', 500, 25, 40, 26],
     french_fries: ['Khoai tây chiên', 365, 4, 48, 17], caesar_salad: ['Salad Caesar', 330, 10, 14, 26], omelette: ['Trứng chiên', 190, 13, 1, 15],
-    // Approximate values from existing 12-class estimates, not image portion estimates.
+    // Món ăn Việt Nam - số liệu ước tính cho 1 khẩu phần
+    'Banh beo': ['Bánh bèo', 300, 8, 45, 9],
+    'Banh bot loc': ['Bánh bột lọc', 350, 8, 55, 10],
+    'Banh can': ['Bánh căn', 320, 12, 40, 11],
+    'Banh canh': ['Bánh canh', 450, 22, 60, 12],
+    'Banh chung': ['Bánh chưng', 500, 14, 75, 16],
+    'Banh cuon': ['Bánh cuốn', 350, 12, 55, 8],
+    'Banh duc': ['Bánh đúc', 300, 7, 50, 8],
+    'Banh gio': ['Bánh giò', 400, 12, 45, 18],
+    'Banh khot': ['Bánh khọt', 400, 12, 35, 24],
+    'Banh mi': ['Bánh mì', 350, 15, 45, 12],
+    'Banh pia': ['Bánh pía', 450, 8, 65, 18],
+    'Banh tet': ['Bánh tét', 450, 12, 70, 14],
+    'Banh trang nuong': ['Bánh tráng nướng', 350, 12, 40, 15],
+    'Banh xeo': ['Bánh xèo', 450, 18, 45, 22],
+    'Bun bo Hue': ['Bún bò Huế', 500, 30, 60, 14],
+    'Bun dau mam tom': ['Bún đậu mắm tôm', 600, 28, 65, 25],
+    'Bun mam': ['Bún mắm', 500, 28, 60, 15],
+    'Bun rieu': ['Bún riêu', 450, 22, 60, 12],
+    'Bun thit nuong': ['Bún thịt nướng', 550, 28, 65, 18],
+    'Ca kho to': ['Cá kho tộ', 300, 25, 15, 14],
+    'Canh chua': ['Canh chua', 150, 15, 15, 4],
+    'Cao lau': ['Cao lầu', 500, 25, 65, 15],
+    'Chao long': ['Cháo lòng', 400, 20, 55, 12],
+    'Goi cuon': ['Gỏi cuốn', 180, 10, 25, 5],
+    'Hu tieu': ['Hủ tiếu', 450, 22, 65, 10],
+    'Mi quang': ['Mì Quảng', 500, 25, 60, 16],
+    'Nem chua': ['Nem chua', 150, 12, 5, 9],
+    'Xoi xeo': ['Xôi xéo', 450, 10, 65, 16],
+
+    // Hai nhãn đã có dữ liệu từ trước
     Pho: ['Phở (ước tính theo phở bò)', 450, 28, 55, 12],
     'Com tam': ['Cơm tấm (ước tính theo cơm tấm sườn)', 520, 32, 58, 16]
 };
 
 export const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+// Chuẩn hóa ID tài khoản
+export const idOf = user => {
+    if (!user) return '';
+    return String(user.email || user.id || user.name || '')
+        .trim().toLowerCase();
+};
 
+// Lấy ID tài khoản hiện tại
+export const userId = () => idOf(getUser());
+
+// Tạo khóa riêng cho từng tài khoản
+export const ukey = (key, id) => `${key}:${id}`;
+
+// Đọc dữ liệu riêng của tài khoản
+export const uload = (key, fallback, id) => {
+    if (!id) return fallback;
+    try {
+        const value = localStorage.getItem(ukey(key, id));
+        return value === null ? fallback : JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+};
+
+// Chuyển dữ liệu cũ sang tài khoản tương ứng
+export const migrateLegacy = id => {
+    if (!id) return false;
+
+    try {
+        const oldProfile = load('nv_profile', null);
+
+        // Chỉ chuyển khi email hồ sơ cũ khớp tài khoản
+        if (
+            !oldProfile?.email ||
+            idOf({ email: oldProfile.email }) !== id
+        ) return false;
+
+        const keys = [
+            'nv_meals',
+            'nv_target',
+            'nv_weeks',
+            'nv_water',
+            'nv_workout',
+            'nv_plan',
+            'nv_profile'
+        ];
+
+        keys.forEach(key => {
+            const oldValue = localStorage.getItem(key);
+            const newKey = ukey(key, id);
+
+            if (
+                oldValue !== null &&
+                localStorage.getItem(newKey) === null
+            ) {
+                localStorage.setItem(newKey, oldValue);
+            }
+        });
+
+        keys.forEach(key => localStorage.removeItem(key));
+
+        return true;
+    } catch (error) {
+        console.error('Lỗi chuyển dữ liệu:', error);
+        return false;
+    }
+};
 export const dayKey = d => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD theo giờ máy
 
 export const getUser = () => { try { return JSON.parse(localStorage.getItem('nv_user') || sessionStorage.getItem('nv_user')); } catch { return null; } };
@@ -74,9 +170,63 @@ export const VN_DISHES = [
     { name: 'Bánh mì trứng', calories: 350, protein: 14, carbs: 42, fat: 13 }
 ];
 
-export const suggestDishes = (goal, remaining, targetCal) => {
-    const score = { lose: d => -d.protein / d.calories, gain_muscle: d => -d.protein, gain: d => -d.calories, keep: d => Math.abs(d.calories - targetCal / 3) }[goal];
-    return VN_DISHES.filter(d => d.calories <= remaining).sort((x, y) => score(x) - score(y)).slice(0, 3);
+// Gợi ý ngẫu nhiên 3-4 món từ các lớp dữ liệu AI đã huấn luyện.
+// Danh sách cố định trong ngày, tự đổi khi sang ngày mới.
+export const suggestDishes = (remaining, dateKey = dayKey(new Date())) => {
+    // Chỉ lấy món vừa có trong FOOD_CLASSES vừa có dữ liệu NUTRITION.
+    const allDishes = FOOD_CLASSES
+        .map(label => {
+            const nutrition = NUTRITION[label];
+
+            if (!nutrition) return null;
+
+            return {
+                label,
+                name: nutrition[0],
+                calories: nutrition[1],
+                protein: nutrition[2],
+                carbs: nutrition[3],
+                fat: nutrition[4]
+            };
+        })
+        .filter(Boolean);
+
+    if (allDishes.length === 0) return [];
+
+    // Ưu tiên món phù hợp với lượng calo còn lại.
+    let pool = allDishes.filter(d => d.calories <= remaining);
+
+    // Nếu không đủ 3 món phù hợp thì lấy từ toàn bộ danh sách.
+    if (pool.length < 3) {
+        pool = allDishes;
+    }
+
+    // Tạo số ngẫu nhiên cố định theo ngày.
+    let seed = [...String(dateKey)].reduce(
+        (value, char) => (value * 31 + char.charCodeAt(0)) >>> 0,
+        2166136261
+    );
+
+    const random = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+
+    // Xáo trộn danh sách.
+    const shuffled = [...pool];
+
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Mỗi ngày chọn ngẫu nhiên 3 hoặc 4 món.
+    const count = Math.min(
+        shuffled.length,
+        3 + Math.floor(random() * 2)
+    );
+
+    return shuffled.slice(0, count);
 };
 
 // Lộ trình: p = hồ sơ, pl = {targetWeight, weeks} hoặc null. 1 kg ≈ 7700 kcal
