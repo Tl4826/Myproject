@@ -9,8 +9,7 @@ const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const SESSION_COOKIE = 'nutrivn_session';
 const json = (res, code, body) => res.status(code).setHeader('Cache-Control', 'no-store').json(body);
 const sha256 = data => createHash('sha256').update(data).digest('hex');
-const isReady = () => Boolean(process.env.DATABASE_URL && process.env.GOOGLE_CLIENT_ID &&
-    process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET);
+const isReady = () => Boolean(process.env.DATABASE_URL);
 
 function getCookie(req, name) {
     return (req.headers.cookie || '').split(';').map(x => x.trim())
@@ -81,6 +80,16 @@ async function verifyFacebook(token) {
     };
 }
 
+export async function getAuthenticatedUser(req, sql) {
+    const raw = getCookie(req, SESSION_COOKIE);
+    if (!/^[0-9a-f]{64}$/.test(raw)) return null;
+    const rows = await sql`
+        SELECT u.id, u.provider, u.email, u.display_name, u.avatar_url
+        FROM social_sessions s JOIN social_users u ON u.id = s.user_id
+        WHERE s.token_hash = ${sha256(raw)} AND s.expires_at > now() LIMIT 1
+    `;
+    return rows[0] || null;
+}
 export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     if (!isReady()) return json(res, 503, { error: 'Chưa cấu hình database và OAuth trên Vercel' });
@@ -97,6 +106,9 @@ export default async function handler(req, res) {
     try {
         if (req.method === 'POST') {
             const provider = req.body?.provider, credential = req.body?.credential;
+            if ((provider === 'google' && !process.env.GOOGLE_CLIENT_ID) ||
+                (provider === 'facebook' && (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET)))
+                return json(res, 503, { error: 'Chưa cấu hình nhà cung cấp đăng nhập trên Vercel' });
             if (!['google', 'facebook'].includes(provider) || typeof credential !== 'string' ||
                 !credential || credential.length > MAX_TOKEN_LENGTH) {
                 return json(res, 400, { error: 'Thông tin đăng nhập không hợp lệ' });
