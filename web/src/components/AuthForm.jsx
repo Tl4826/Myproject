@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext.jsx';
 
 export default function AuthForm({ mode }) {
     const {
-        navigate, login, showPw, setShowPw, notify, rememberMe, setRememberMe,
+        navigate, login, socialLogin, showPw, setShowPw, notify, rememberMe, setRememberMe,
         authName, setAuthName, userEmail, setUserEmail, handleAuthSubmit, fbLogin,
     } = useApp();
 
@@ -16,14 +16,26 @@ export default function AuthForm({ mode }) {
         return () => window.removeEventListener('keydown', h);
     }, []);
 
-    // Nút Google (chỉ vẽ khi đã điền GOOGLE_CLIENT_ID)
+    // Google trả ID token cho server kiểm tra chữ ký; frontend không tự xác thực JWT.
     useEffect(() => {
-        if (!GOOGLE_CLIENT_ID || !window.google) return;
-        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: r => {
-            const p = JSON.parse(decodeURIComponent(escape(atob(r.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))));
-            login({ email: p.email, name: p.name, provider: 'google' });
-        } });
-        google.accounts.id.renderButton(document.getElementById('g-btn'), { theme: 'outline', size: 'large', width: 280, text: 'continue_with' });
+        if (!GOOGLE_CLIENT_ID) return;
+        let attempts = 0, timeout;
+        const start = () => {
+            if (!window.google?.accounts?.id) {
+                if (attempts++ < 30) timeout = setTimeout(start, 250);
+                return;
+            }
+            window.google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: r => { if (r?.credential) socialLogin('google', r.credential); }
+            });
+            const node = document.getElementById('g-btn');
+            if (node) window.google.accounts.id.renderButton(node, {
+                theme: 'outline', size: 'large', width: 280, text: 'continue_with'
+            });
+        };
+        start();
+        return () => clearTimeout(timeout);
     }, []);
 
     return (
@@ -60,6 +72,7 @@ export default function AuthForm({ mode }) {
                         </button>
                     </form>
 
+                    <p className="text-center text-[10px] text-white/80">Đăng nhập email hiện chỉ dùng dữ liệu trên thiết bị; Google/Facebook sẽ lưu nhật ký riêng khi được cấu hình.</p>
                     <div className="space-y-2.5 text-sm">
                         <div className="flex items-center text-[11px] text-white/70 font-bold"><span className="flex-1 border-t border-white/30"></span><span className="px-3">HOẶC</span><span className="flex-1 border-t border-white/30"></span></div>
                         {GOOGLE_CLIENT_ID

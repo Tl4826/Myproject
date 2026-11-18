@@ -11,7 +11,18 @@ export const useApp = () => useContext(AppContext);
 
 // Toàn bộ state + hàm xử lý dùng chung của ứng dụng (trước đây nằm trong NutriApp)
 export function AppProvider({ children }) {
-    const [meals, setMeals] = useState(() => load('nv_meals', INITIAL_MEALS).filter(m => !m.name.includes('Cà Phê')).map(m => ({ date: dayKey(new Date()), ...m })));
+    // Không dùng nv_meals/nv_profile toàn cục cho nhiều tài khoản: dễ lộ dữ liệu người trước.
+    const scopedMealKey = u => u?.provider === 'email' && u.email
+        ? 'nv_meals_email_' + u.email.trim().toLowerCase() : null;
+    const scopedProfileKey = u => u?.id && u.provider !== 'email'
+        ? 'nv_profile_social_' + u.id
+        : u?.provider === 'email' && u.email
+            ? 'nv_profile_email_' + u.email.trim().toLowerCase() : null;
+    const [meals, setMeals] = useState(() => {
+        const key = scopedMealKey(getUser());
+        return key ? load(key, []).filter(m => m && typeof m.name === 'string') : [];
+    });
+    const [socialAccount, setSocialAccount] = useState(null);
     const navigate = useNavigate();
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
@@ -45,7 +56,7 @@ export function AppProvider({ children }) {
     const notify = m => { setToast(m); setTimeout(() => setToast(''), 2500); };
     const [rememberMe, setRememberMe] = useState(true);
     const [authName, setAuthName] = useState('');
-    const [isLoggedIn, setIsLoggedIn] = useState(() => !!getUser());
+    const [isLoggedIn, setIsLoggedIn] = useState(() => getUser()?.provider === 'email');
     const [userEmail, setUserEmail] = useState(() => getUser()?.name || getUser()?.email || '');
     const [isTeamOpen, setIsTeamOpen] = useState(false);
     const [isGuideOpen, setIsGuideOpen] = useState(false);
@@ -63,7 +74,10 @@ export function AppProvider({ children }) {
     const [obGoal, setObGoal] = useState(''); // rỗng = dùng gợi ý theo BMI
 
     // Hồ sơ + lộ trình
-    const [profile, setProfile] = useState(() => load('nv_profile', null));
+    const [profile, setProfile] = useState(() => {
+        const key = scopedProfileKey(getUser());
+        return key ? load(key, null) : null;
+    });
     const [plan, setPlan] = useState(() => load('nv_plan', null)); // {targetWeight, weeks, startDate, startWeight}
     const [planTw, setPlanTw] = useState(() => { const pl = load('nv_plan', null); return pl ? String(pl.targetWeight) : ''; });
     const [planWk, setPlanWk] = useState(() => { const pl = load('nv_plan', null); return pl ? String(pl.weeks) : ''; });
@@ -90,9 +104,14 @@ export function AppProvider({ children }) {
 
     const [isWeeklySaved, setIsWeeklySaved] = useState(false);
 
-            useEffect(() => {
-        try { localStorage.setItem('nv_meals', JSON.stringify(meals)); localStorage.setItem('nv_target', targetCal); localStorage.setItem('nv_weeks', JSON.stringify(savedWeeklyLogs)); } catch {}
-    }, [meals, targetCal, savedWeeklyLogs]);
+    useEffect(() => {
+        try {
+            const key = scopedMealKey(getUser());
+            if (!socialAccount && key) localStorage.setItem(key, JSON.stringify(meals));
+            localStorage.setItem('nv_target', String(targetCal));
+            localStorage.setItem('nv_weeks', JSON.stringify(savedWeeklyLogs));
+        } catch {}
+    }, [meals, targetCal, savedWeeklyLogs, socialAccount]);
 
     const rp = profile ? computePlan(profile, plan) : null;
     const pbmi = profile ? bmiInfo(profile.weight, profile.height) : null;
@@ -134,15 +153,84 @@ export function AppProvider({ children }) {
         setTimeout(() => setIsWeeklySaved(false), 3000);
     };
 
+
+    // Tài khoản chỉ được chấp nhận sau khi backend xác minh Google/Facebook.
+    const fetchSocialDiary = async () => {
+        const res = await fetch('/api/diary', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Không thể tải nhật ký của tài khoản');
+        const data = await res.json();
+        return Array.isArray(data.meals) ? data.meals : [];
+    };
+    const activateSocialAccount = async user => {
+        const cloudMeals = await fetchSocialDiary();
+        setMeals(cloudMeals);
+        setSocialAccount(user);
+        const key = scopedProfileKey(user);
+        const savedProfile = key ? load(key, null) : null;
+        setProfile(savedProfile);
+        setPlan(null); setPlanTw(''); setPlanWk('');
+        setSavedWeeklyLogs([]);
+        setUserEmail(user.name || user.email || '');
+        try {
+            localStorage.setItem('nv_user', JSON.stringify(user));
+            sessionStorage.removeItem('nv_user');
+        } catch {}
+        setIsLoggedIn(true);
+        if (!savedProfile) {
+            setObEmail(user.email || ''); setObName(user.name || '');
+            setObErr(''); setObGoal(''); setObAge(''); setObHeight(''); setObWeight('');
+            setIsOnboardOpen(true);
+        }
+    };
+    useEffect(() => {
+        if (getUser()?.provider === 'email') return;
+        let active = true;
+        (async () => {
+            try {
+                const res = await fetch('/api/social-auth', { credentials: 'same-origin' });
+                if (!res.ok) {
+                    try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
+                    return;
+                }
+                const data = await res.json();
+                if (active && data.user) await activateSocialAccount(data.user);
+            } catch { /* Không chấp nhận trạng thái login chưa được xác minh. */ }
+        })();
+        return () => { active = false; };
+    }, []);
+    const socialLogin = async (provider, credential) => {
+        try {
+            const response = await fetch('/api/social-auth', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider, credential })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.user)
+                throw new Error(data.error || 'Đăng nhập không thành công');
+            await activateSocialAccount(data.user);
+            notify('Đăng nhập thành công');
+        } catch (err) { notify(err.message || 'Lỗi đăng nhập'); }
+    };
+
     const login = (u, msg = 'Đăng nhập thành công') => {
         setIsLoggedIn(true); setUserEmail(u.name || u.email || '');
         notify(msg);
         try { (rememberMe ? localStorage : sessionStorage).setItem('nv_user', JSON.stringify(u)); } catch {} // không lưu mật khẩu/token
-        const prof = load('nv_profile', null);
+        const key = scopedProfileKey(u);
+        const prof = key ? load(key, null) : null;
+        setMeals(load(scopedMealKey(u), []));
+        setProfile(prof);
+        setPlan(null);
         if (!prof || prof.email !== u.email) { setObEmail(u.email || ''); setObName(u.name || ''); setObErr(''); setObGoal(''); setObAge(''); setObHeight(''); setObWeight(''); setIsOnboardOpen(true); }
     };
     const logout = () => {
+        if (socialAccount) fetch('/api/social-auth', {
+            method: 'DELETE', credentials: 'same-origin'
+        }).catch(() => {});
         try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
+        setSocialAccount(null); setMeals([]); setProfile(null); setPlan(null);
+        setIsOnboardOpen(false);
         setIsLoggedIn(false); setUserEmail(''); notify('Đã đăng xuất'); navigate('/');
     };
     const handleAuthSubmit = (e, mode) => {
@@ -151,8 +239,12 @@ export function AppProvider({ children }) {
         setAuthName('');
     };
     const fbLogin = () => {
-        if (!FACEBOOK_APP_ID || !window.FB) return notify('Chưa điền FACEBOOK_APP_ID (hoặc SDK chưa tải xong)');
-        FB.login(r => { if (r.authResponse) FB.api('/me', { fields: 'name,email' }, u => login({ email: u.email || u.name, name: u.name, provider: 'facebook' })); }, { scope: 'public_profile,email' });
+        if (!FACEBOOK_APP_ID || !window.FB)
+            return notify('Facebook Login chưa được cấu hình hoặc SDK chưa tải xong');
+        FB.login(r => {
+            if (r.authResponse?.accessToken) socialLogin('facebook', r.authResponse.accessToken);
+            else notify('Bạn chưa cấp quyền đăng nhập Facebook');
+        }, { scope: 'public_profile,email' });
     };
 
     const openProfile = () => {
@@ -174,7 +266,10 @@ export function AppProvider({ children }) {
         const goal = obGoal || suggestGoal(b.value);
         const name = obName.trim();
         const prof = { email: obEmail, name, age: a, gender: obGender, height: h, weight: w, bmi: b.value, activity: Number(obActivity), goal };
-        try { localStorage.setItem('nv_profile', JSON.stringify(prof)); } catch {}
+        try {
+            const key = scopedProfileKey(socialAccount || getUser());
+            if (key) localStorage.setItem(key, JSON.stringify(prof));
+        } catch {}
         try { const st = localStorage.getItem('nv_user') ? localStorage : sessionStorage; const u = JSON.parse(st.getItem('nv_user')); if (u) st.setItem('nv_user', JSON.stringify({ ...u, name })); } catch {}
         if (!profile || profile.email !== obEmail || profile.weight !== w || profile.goal !== goal) { setPlan(null); setPlanTw(''); setPlanWk(''); setEditPlan(false); setPlanErr(''); } // đổi cân nặng/mục tiêu -> lập lại lộ trình
         setProfile(prof); setUserEmail(name);
@@ -304,7 +399,7 @@ export function AppProvider({ children }) {
         return scanImage(file);
     };
 
-    const addMeal = (dish) => {
+    const addMeal = async (dish) => {
         if (typeof dish?.name !== 'string' || !dish.name.trim()) {
             notify('Chưa có món ăn hợp lệ để lưu');
             return false;
@@ -323,16 +418,46 @@ export function AppProvider({ children }) {
             time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
             thumb: dish.thumb || null
         };
-        setMeals(prev => [...prev, newM]);
+        if (socialAccount) {
+            try {
+                const response = await fetch('/api/diary', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newM)
+                });
+                const data = await response.json();
+                if (!response.ok || !data.meal)
+                    throw new Error(data.error || 'Không lưu được món ăn');
+                setMeals(prev => [...prev, data.meal]);
+            } catch (err) { notify(err.message || 'Lỗi database'); return false; }
+        } else setMeals(prev => [...prev, newM]);
         navigate('/diary');
         return true;
     };
 
-    const updateMealCategory = (id, category) => {
+    const updateMealCategory = async (id, category) => {
+        if (socialAccount) {
+            try {
+                const response = await fetch('/api/diary', {
+                    method: 'PATCH', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, category })
+                });
+                if (!response.ok) throw new Error();
+            } catch { notify('Không thể cập nhật bữa ăn'); return; }
+        }
         setMeals(prev => prev.map(meal => meal.id === id ? { ...meal, category } : meal));
     };
 
-    const removeMeal = id => {
+    const removeMeal = async id => {
+        if (socialAccount) {
+            try {
+                const response = await fetch('/api/diary?id=' + encodeURIComponent(id), {
+                    method: 'DELETE', credentials: 'same-origin'
+                });
+                if (!response.ok) throw new Error();
+            } catch { notify('Không thể xoá món ăn'); return; }
+        }
         setMeals(prev => prev.filter(meal => meal.id !== id));
     };
 
@@ -349,7 +474,7 @@ export function AppProvider({ children }) {
         water, setWater, workoutDone, setWorkoutDone, obErr, weeklyHistory, loggedDays, weekAvg,
         chartMax, savedWeeklyLogs, isWeeklySaved, rp, pbmi, todayWorkout, dishes, daysIn,
         totalDays, planPct, expectedW, handleSaveWeekToDevice, login, logout, handleAuthSubmit,
-        fbLogin, openProfile, saveProfile, savePlan, handleFile, scanImage, addMeal, updateMealCategory,
+        fbLogin, socialLogin, openProfile, saveProfile, savePlan, handleFile, scanImage, addMeal, updateMealCategory,
         removeMeal,
     };
 

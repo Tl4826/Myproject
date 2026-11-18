@@ -103,7 +103,7 @@ export default function HomePage() {
                                 : <p className="text-[10px] text-amber-700 font-bold">Chưa có dữ liệu dinh dưỡng cho món này. Bạn vẫn có thể lưu tên món vào nhật ký; món chưa được tính vào tổng kcal.</p>}
                             {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
                             {(
-                                <button onClick={() => { if (addMeal(heroScannedDish)) { setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); } }}
+                                <button onClick={async () => { if (await addMeal(heroScannedDish)) { setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); } }}
                                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">
                                     {heroScannedDish.hasNutrition ? 'LƯU ƯỚC TÍNH VÀO NHẬT KÝ' : 'LƯU TÊN MÓN VÀO NHẬT KÝ'}
                                 </button>

@@ -5,9 +5,9 @@ export const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, 
 
 export const UPLOAD_FIELD = 'file';               // tên field ảnh trong FastAPI (đổi nếu khác)
 
-export const GOOGLE_CLIENT_ID = '';               // dán Google Client ID vào đây
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';               // dán Google Client ID vào đây
 
-export const FACEBOOK_APP_ID = '';                // dán Facebook App ID vào đây
+export const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';                // dán Facebook App ID vào đây
 
 export const FRUITS = [['🍎', 6, 10, 64, 60], ['🥑', 80, 8, 72, -60], ['🍜', 8, 68, 80, 100], ['🍣', 78, 70, 68, 40], ['🥕', 45, 3, 54, -120], ['🍋', 88, 40, 50, -40], ['🍓', 2, 40, 46, -100], ['🥦', 46, 86, 58, 80]]; // [emoji, trái%, trên%, cỡ chữ, độ sâu Z]
 
