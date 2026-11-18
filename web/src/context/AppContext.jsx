@@ -12,13 +12,17 @@ export const useApp = () => useContext(AppContext);
 
 // Toàn bộ state + hàm xử lý dùng chung của ứng dụng (trước đây nằm trong NutriApp)
 export function AppProvider({ children }) {
-    const [uid, setUid] = useState(() => userId());
+    const [uid, setUid] = useState(() => {
+        const id = userId();
+        if (id) migrateLegacy(id);
+        return id;
+    });
     const [today, setToday] = useState(() => dayKey(new Date()));
 
     const readMeals = id =>
-    uload('nv_meals', INITIAL_MEALS, id)
-        .filter(m => m && typeof m.name === 'string' && !m.name.includes('Cà Phê'))
-        .map(m => ({ date: dayKey(new Date()), ...m }));
+        uload('nv_meals', id ? [] : INITIAL_MEALS, id)
+            .filter(m => m && typeof m.name === 'string' && !m.name.includes('Cà Phê'))
+            .map(m => ({ date: dayKey(new Date()), ...m }));
 
     const [meals, setMeals] = useState(() => readMeals(uid));
     const [socialAccount, setSocialAccount] = useState(null);

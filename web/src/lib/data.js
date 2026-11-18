@@ -99,12 +99,16 @@ export const migrateLegacy = id => {
 
     try {
         const oldProfile = load('nv_profile', null);
+        const currentUser = getUser();
 
-        // Chỉ chuyển khi email hồ sơ cũ khớp tài khoản
-        if (
-            !oldProfile?.email ||
-            idOf({ email: oldProfile.email }) !== id
-        ) return false;
+        // Nếu hồ sơ cũ có email khác với id hiện tại, không chuyển
+        if (oldProfile?.email && idOf({ email: oldProfile.email }) !== id) {
+            return false;
+        }
+        // Nếu tài khoản đang lưu có email khác với id hiện tại, không chuyển
+        if (currentUser && idOf(currentUser) !== id) {
+            return false;
+        }
 
         const keys = [
             'nv_meals',
