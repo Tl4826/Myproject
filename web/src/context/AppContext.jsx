@@ -4,6 +4,7 @@ import {
     USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, load, dayKey,
     getUser, mealByHour, toThumb, suggestGoal, GOAL_LABEL, suggestDishes, computePlan,
     workoutToday, bmiInfo, INITIAL_MEALS,
+    idOf, userId, ukey, uload, migrateLegacy,
 } from '../lib/data.js';
 
 const AppContext = createContext(null);
@@ -11,7 +12,15 @@ export const useApp = () => useContext(AppContext);
 
 // Toàn bộ state + hàm xử lý dùng chung của ứng dụng (trước đây nằm trong NutriApp)
 export function AppProvider({ children }) {
-    const [meals, setMeals] = useState(() => load('nv_meals', INITIAL_MEALS).filter(m => !m.name.includes('Cà Phê')).map(m => ({ date: dayKey(new Date()), ...m })));
+    const [uid, setUid] = useState(() => userId());
+    const [today, setToday] = useState(() => dayKey(new Date()));
+
+    const readMeals = id =>
+    uload('nv_meals', INITIAL_MEALS, id)
+        .filter(m => m && typeof m.name === 'string' && !m.name.includes('Cà Phê'))
+        .map(m => ({ date: dayKey(new Date()), ...m }));
+
+    const [meals, setMeals] = useState(() => readMeals(uid));
     const navigate = useNavigate();
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
@@ -21,15 +30,17 @@ export function AppProvider({ children }) {
     const [scanCorrectionSaved, setScanCorrectionSaved] = useState(false);
     // Only save labels and probabilities; photos are never stored as corrections.
     const [scanCorrections, setScanCorrections] = useState(() => {
-        const records = load('nv_scan_corrections', []);
+        const records = uid
+            ? uload('nv_scan_corrections', [], uid)
+            : load('nv_scan_corrections', []);
+
         return Array.isArray(records) ? records : [];
     });
 
-    const today = dayKey(new Date());
     const todayMeals = meals.filter(m => m.date === today);
     const sum = k => todayMeals.reduce((a, m) => a + (m[k] || 0), 0);
     const totalCal = todayMeals.reduce((acc, curr) => acc + curr.calories, 0);
-    const [targetCal, setTargetCal] = useState(() => load('nv_target', 1600));
+    const [targetCal, setTargetCal] = useState(() => uload('nv_target', 1600, uid));
     const remainingCal = targetCal - totalCal;
     const progress = targetCal > 0
         ? Math.min(Math.round((totalCal / targetCal) * 100), 100)
@@ -63,36 +74,203 @@ export function AppProvider({ children }) {
     const [obGoal, setObGoal] = useState(''); // rỗng = dùng gợi ý theo BMI
 
     // Hồ sơ + lộ trình
-    const [profile, setProfile] = useState(() => load('nv_profile', null));
-    const [plan, setPlan] = useState(() => load('nv_plan', null)); // {targetWeight, weeks, startDate, startWeight}
-    const [planTw, setPlanTw] = useState(() => { const pl = load('nv_plan', null); return pl ? String(pl.targetWeight) : ''; });
-    const [planWk, setPlanWk] = useState(() => { const pl = load('nv_plan', null); return pl ? String(pl.weeks) : ''; });
+    const [profile, setProfile] = useState(() => uload('nv_profile', null, uid));
+    const [plan, setPlan] = useState(() => uload('nv_plan', null, uid)); // {targetWeight, weeks, startDate, startWeight}
+    const [planTw, setPlanTw] = useState(() => { const pl = uload('nv_plan', null, uid); return pl ? String(pl.targetWeight) : ''; });
+    const [planWk, setPlanWk] = useState(() => { const pl = uload('nv_plan', null, uid); return pl ? String(pl.weeks) : ''; });
     const [planErr, setPlanErr] = useState('');
     const [editPlan, setEditPlan] = useState(false);
-    const [water, setWater] = useState(() => { const w = load('nv_water', null); return w && w.date === dayKey(new Date()) ? w.n : 0; });
-    const [workoutDone, setWorkoutDone] = useState(() => { const w = load('nv_workout', null); return !!(w && w.date === dayKey(new Date()) && w.done); });
+    const [water, setWater] = useState(() => { const w = uload('nv_water', null, uid); return w && w.date === dayKey(new Date()) ? w.n : 0; });
+    const [workoutDone, setWorkoutDone] = useState(() => { const w = uload('nv_workout', null, uid); return !!(w && w.date === dayKey(new Date()) && w.done); });
+
+    // Tự cập nhật ngày mới, kể cả khi ứng dụng vẫn đang mở
+    useEffect(() => {
+        const checkDate = () => {
+            const currentDate = dayKey(new Date());
+
+            if (currentDate === today) return;
+
+            const savedWater = uid ? uload('nv_water', null, uid) : null;
+            const savedWorkout = uid ? uload('nv_workout', null, uid) : null;
+
+            setWater(
+                savedWater && savedWater.date === currentDate
+                    ? savedWater.n
+                    : 0
+            );
+
+            setWorkoutDone(
+                !!(
+                    savedWorkout &&
+                    savedWorkout.date === currentDate &&
+                    savedWorkout.done
+                )
+            );
+
+            setToday(currentDate);
+        };
+
+        const timer = setInterval(checkDate, 60000);
+
+        return () => clearInterval(timer);
+    }, [uid, today]);
+
     const [obErr, setObErr] = useState('');
 
+    // Lấy ngày thứ Hai đầu tuần
+    const getWeekStart = date => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+        return d;
+    };
+
+    const weekStart = getWeekStart(new Date(`${today}T00:00:00`));
+
+    // Thống kê từ thứ Hai đến Chủ nhật
     const weeklyHistory = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(); d.setDate(d.getDate() - (6 - i));
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+
         const key = dayKey(d);
+
         return {
-            day: i === 6 ? 'Hôm nay' : ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()],
-            date: d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
-            calories: meals.filter(m => m.date === key).reduce((a, m) => a + m.calories, 0)
+            day: key === today
+                ? 'Hôm nay'
+                : ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()],
+            date: d.toLocaleDateString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit'
+            }),
+            calories: meals
+                .filter(m => m.date === key)
+                .reduce((a, m) => a + (Number(m.calories) || 0), 0)
         };
     });
+
     const loggedDays = weeklyHistory.filter(d => d.calories > 0);
-    const weekAvg = loggedDays.length ? Math.round(loggedDays.reduce((a, d) => a + d.calories, 0) / loggedDays.length) : 0;
-    const chartMax = Math.max(targetCal * 1.4, ...weeklyHistory.map(d => d.calories * 1.15));
 
-    const [savedWeeklyLogs, setSavedWeeklyLogs] = useState(() => load('nv_weeks', []).filter(l => l.week !== 'Tuần 44 (20/10 - 26/10)'));
+    const weekAvg = loggedDays.length
+        ? Math.round(
+            loggedDays.reduce((a, d) => a + d.calories, 0) / loggedDays.length
+        )
+        : 0;
 
-    const [isWeeklySaved, setIsWeeklySaved] = useState(false);
+    const chartMax = Math.max(
+        targetCal * 1.4,
+        ...weeklyHistory.map(d => d.calories * 1.15)
+    );
 
-            useEffect(() => {
-        try { localStorage.setItem('nv_meals', JSON.stringify(meals)); localStorage.setItem('nv_target', targetCal); localStorage.setItem('nv_weeks', JSON.stringify(savedWeeklyLogs)); } catch {}
-    }, [meals, targetCal, savedWeeklyLogs]);
+    const [savedWeeklyLogs, setSavedWeeklyLogs] = useState(() =>
+        uload('nv_weeks', [], uid)
+    );
+
+    // Tự động lưu các tuần đã kết thúc
+    useEffect(() => {
+        if (!uid) return;
+
+        const completedWeeks = new Map();
+
+        meals.forEach(meal => {
+            if (!meal?.date) return;
+
+            const mealDate = new Date(`${meal.date}T00:00:00`);
+
+            if (Number.isNaN(mealDate.getTime())) return;
+
+            const start = getWeekStart(mealDate);
+
+            // Không lưu tuần hiện tại hoặc tuần tương lai
+            if (start.getTime() >= weekStart.getTime()) return;
+
+            const key = dayKey(start);
+
+            if (!completedWeeks.has(key)) {
+                completedWeeks.set(key, {
+                    start,
+                    daily: new Map()
+                });
+            }
+
+            const group = completedWeeks.get(key);
+            const calories = Number(meal.calories) || 0;
+
+            group.daily.set(
+                meal.date,
+                (group.daily.get(meal.date) || 0) + calories
+            );
+        });
+
+        const records = Array.from(completedWeeks.entries())
+            .map(([key, group]) => {
+                const dailyCalories = Array.from(group.daily.values())
+                    .filter(value => value > 0);
+
+                if (!dailyCalories.length) return null;
+
+                const end = new Date(group.start);
+                end.setDate(end.getDate() + 6);
+
+                const avgCal = Math.round(
+                    dailyCalories.reduce((a, b) => a + b, 0)
+                    / dailyCalories.length
+                );
+
+                return {
+                    key,
+                    week: `Tuần ${group.start.toLocaleDateString('vi-VN')} - ${end.toLocaleDateString('vi-VN')}`,
+                    avgCal,
+                    daysRecorded: dailyCalories.length,
+                    targetCal,
+                    status: avgCal <= targetCal
+                        ? 'Đạt mục tiêu'
+                        : 'Vượt calo',
+                    isCompleted: true
+                };
+            })
+            .filter(Boolean);
+
+        if (!records.length) return;
+
+        setSavedWeeklyLogs(prev => {
+            const history = new Map(
+                prev
+                    .filter(record => record?.key)
+                    .map(record => [record.key, record])
+            );
+
+            const legacyRecords = prev.filter(record => !record?.key);
+
+            records.forEach(record => {
+                const existing = history.get(record.key);
+
+                // Không ghi đè báo cáo tuần đã chốt
+                if (existing?.isCompleted) return;
+
+                history.set(record.key, record);
+            });
+
+            return [
+                ...Array.from(history.values()).sort(
+                    (a, b) => b.key.localeCompare(a.key)
+                ),
+                ...legacyRecords
+            ];
+        });
+
+    }, [uid, meals, targetCal, today]);
+
+    const [isWeeklySaved, setIsWeeklySaved] = useState(false); 
+
+    useEffect(() => {
+        if (!uid) return;
+
+        try {
+            localStorage.setItem(ukey('nv_meals', uid), JSON.stringify(meals));
+            localStorage.setItem(ukey('nv_target', uid), JSON.stringify(targetCal));
+            localStorage.setItem(ukey('nv_weeks', uid), JSON.stringify(savedWeeklyLogs));
+        } catch {}
+    }, [uid, meals, targetCal, savedWeeklyLogs]);
 
     const rp = profile ? computePlan(profile, plan) : null;
     const pbmi = profile ? bmiInfo(profile.weight, profile.height) : null;
@@ -105,12 +283,32 @@ export function AppProvider({ children }) {
 
     useEffect(() => { if (rp) setTargetCal(rp.targetCal); }, [rp && rp.targetCal]);
     useEffect(() => {
+        if (!uid) return;
+
         try {
-            localStorage.setItem('nv_water', JSON.stringify({ date: today, n: water }));
-            localStorage.setItem('nv_workout', JSON.stringify({ date: today, done: workoutDone }));
-            if (plan) localStorage.setItem('nv_plan', JSON.stringify(plan)); else localStorage.removeItem('nv_plan');
+            localStorage.setItem(
+                ukey('nv_water', uid),
+                JSON.stringify({ date: today, n: water })
+            );
+
+            localStorage.setItem(
+                ukey('nv_workout', uid),
+                JSON.stringify({ date: today, done: workoutDone })
+            );
+
+            if (plan) {
+                localStorage.setItem(ukey('nv_plan', uid), JSON.stringify(plan));
+            } else {
+                localStorage.removeItem(ukey('nv_plan', uid));
+            }
+
+            if (profile) {
+                localStorage.setItem(ukey('nv_profile', uid), JSON.stringify(profile));
+            } else {
+                localStorage.removeItem(ukey('nv_profile', uid));
+            }
         } catch {}
-    }, [water, workoutDone, plan]);
+    }, [uid, water, workoutDone, plan, profile, today]);
 
     useEffect(() => {
         const h = e => { if (e.key === 'Escape') setIsTeamOpen(false); };
@@ -128,22 +326,120 @@ export function AppProvider({ children }) {
 
     const handleSaveWeekToDevice = () => {
         if (!loggedDays.length) return;
-        const record = { key: today, week: `7 ngày (${weeklyHistory[0].date} - ${weeklyHistory[6].date})`, avgCal: weekAvg, daysRecorded: loggedDays.length, status: weekAvg <= targetCal ? 'Đạt mục tiêu' : 'Vượt calo' };
-        setSavedWeeklyLogs(prev => [record, ...prev.filter(l => l.key !== today)]);
+
+        const end = new Date(weekStart);
+        end.setDate(end.getDate() + 6);
+
+        const record = {
+            key: dayKey(weekStart),
+            week: `Tuần ${weekStart.toLocaleDateString('vi-VN')} - ${end.toLocaleDateString('vi-VN')}`,
+            avgCal: weekAvg,
+            daysRecorded: loggedDays.length,
+            targetCal,
+            status: weekAvg <= targetCal
+                ? 'Đạt mục tiêu'
+                : 'Vượt calo',
+            isCompleted: false
+        };
+
+        setSavedWeeklyLogs(prev => [
+            record,
+            ...prev.filter(l => l.key !== record.key)
+        ]);
+
         setIsWeeklySaved(true);
         setTimeout(() => setIsWeeklySaved(false), 3000);
     };
 
+    // Chuyển dữ liệu theo tài khoản đăng nhập
+    const switchUser = id => {
+        setUid(id);
+
+        setMeals(id ? readMeals(id) : INITIAL_MEALS);
+        setTargetCal(id ? uload('nv_target', 1600, id) : 1600);
+
+        const newProfile = id ? uload('nv_profile', null, id) : null;
+        const newPlan = id ? uload('nv_plan', null, id) : null;
+
+        setProfile(newProfile);
+        setPlan(newPlan);
+        setPlanTw(newPlan ? String(newPlan.targetWeight) : '');
+        setPlanWk(newPlan ? String(newPlan.weeks) : '');
+
+        const newWater = id ? uload('nv_water', null, id) : null;
+        setWater(
+            newWater && newWater.date === dayKey(new Date())
+                ? newWater.n : 0
+        );
+
+        const newWorkout = id ? uload('nv_workout', null, id) : null;
+        setWorkoutDone(
+            !!(newWorkout &&
+            newWorkout.date === dayKey(new Date()) &&
+            newWorkout.done)
+        );
+
+        const newWeeks = id ? uload('nv_weeks', [], id) : [];
+
+        setSavedWeeklyLogs(
+            Array.isArray(newWeeks) ? newWeeks : []
+        );
+
+        const newCorrections = id
+            ? uload('nv_scan_corrections', [], id)
+            : load('nv_scan_corrections', []);
+
+        setScanCorrections(
+            Array.isArray(newCorrections) ? newCorrections : []
+        );
+
+        setScanCorrectionSaved(false);
+    };
+
     const login = (u, msg = 'Đăng nhập thành công') => {
-        setIsLoggedIn(true); setUserEmail(u.name || u.email || '');
+        const nid = idOf(u);
+
+        try {
+            (rememberMe ? localStorage : sessionStorage)
+                .setItem('nv_user', JSON.stringify(u));
+        } catch {}
+
+        migrateLegacy(nid);
+        switchUser(nid);
+
+        setIsLoggedIn(true);
+        setUserEmail(u.name || u.email || '');
         notify(msg);
-        try { (rememberMe ? localStorage : sessionStorage).setItem('nv_user', JSON.stringify(u)); } catch {} // không lưu mật khẩu/token
-        const prof = load('nv_profile', null);
-        if (!prof || prof.email !== u.email) { setObEmail(u.email || ''); setObName(u.name || ''); setObErr(''); setObGoal(''); setObAge(''); setObHeight(''); setObWeight(''); setIsOnboardOpen(true); }
+
+        const prof = uload('nv_profile', null, nid);
+
+        if (!prof || prof.email !== u.email) {
+            setObEmail(u.email || '');
+            setObName(u.name || '');
+            setObErr('');
+            setObGoal('');
+            setObAge('');
+            setObHeight('');
+            setObWeight('');
+            setIsOnboardOpen(true);
+        } else {
+            setIsOnboardOpen(false);
+        }
     };
     const logout = () => {
-        try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
-        setIsLoggedIn(false); setUserEmail(''); notify('Đã đăng xuất'); navigate('/');
+        try {
+            localStorage.removeItem('nv_user');
+            sessionStorage.removeItem('nv_user');
+        } catch {}
+
+        switchUser('');
+
+        setIsLoggedIn(false);
+        setUserEmail('');
+        setIsOnboardOpen(false);
+
+        notify('Đã đăng xuất');
+        navigate('/');
     };
     const handleAuthSubmit = (e, mode) => {
         e.preventDefault();
@@ -174,7 +470,14 @@ export function AppProvider({ children }) {
         const goal = obGoal || suggestGoal(b.value);
         const name = obName.trim();
         const prof = { email: obEmail, name, age: a, gender: obGender, height: h, weight: w, bmi: b.value, activity: Number(obActivity), goal };
-        try { localStorage.setItem('nv_profile', JSON.stringify(prof)); } catch {}
+        try {
+            if (uid) {
+                localStorage.setItem(
+                    ukey('nv_profile', uid),
+                    JSON.stringify(prof)
+                );
+            }
+        } catch {}
         try { const st = localStorage.getItem('nv_user') ? localStorage : sessionStorage; const u = JSON.parse(st.getItem('nv_user')); if (u) st.setItem('nv_user', JSON.stringify({ ...u, name })); } catch {}
         if (!profile || profile.email !== obEmail || profile.weight !== w || profile.goal !== goal) { setPlan(null); setPlanTw(''); setPlanWk(''); setEditPlan(false); setPlanErr(''); } // đổi cân nặng/mục tiêu -> lập lại lộ trình
         setProfile(prof); setUserEmail(name);
@@ -222,7 +525,12 @@ export function AppProvider({ children }) {
         };
         try {
             const updated = [...scanCorrections, record].slice(-500);
-            localStorage.setItem('nv_scan_corrections', JSON.stringify(updated));
+
+            const storageKey = uid
+                ? ukey('nv_scan_corrections', uid)
+                : 'nv_scan_corrections';
+
+            localStorage.setItem(storageKey, JSON.stringify(updated));
             setScanCorrections(updated);
             setScanCorrectionSaved(true);
             notify('Đã lưu phản hồi trên trình duyệt');
@@ -244,8 +552,14 @@ export function AppProvider({ children }) {
     };
 
     const clearScanCorrections = () => {
-        if (!window.confirm('Xóa toàn bộ phản hồi AI trên trình duyệt này?')) return;
-        localStorage.removeItem('nv_scan_corrections');
+        if (!window.confirm('Xóa toàn bộ phản hồi AI của tài khoản hiện tại trên trình duyệt này?')) return;
+
+        const storageKey = uid
+            ? ukey('nv_scan_corrections', uid)
+            : 'nv_scan_corrections';
+
+        localStorage.removeItem(storageKey);
+
         setScanCorrections([]);
         setScanCorrectionSaved(false);
     };

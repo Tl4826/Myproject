@@ -39,7 +39,73 @@ export const NUTRITION = {
 };
 
 export const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+// Chuẩn hóa ID tài khoản
+export const idOf = user => {
+    if (!user) return '';
+    return String(user.email || user.id || user.name || '')
+        .trim().toLowerCase();
+};
 
+// Lấy ID tài khoản hiện tại
+export const userId = () => idOf(getUser());
+
+// Tạo khóa riêng cho từng tài khoản
+export const ukey = (key, id) => `${key}:${id}`;
+
+// Đọc dữ liệu riêng của tài khoản
+export const uload = (key, fallback, id) => {
+    if (!id) return fallback;
+    try {
+        const value = localStorage.getItem(ukey(key, id));
+        return value === null ? fallback : JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+};
+
+// Chuyển dữ liệu cũ sang tài khoản tương ứng
+export const migrateLegacy = id => {
+    if (!id) return false;
+
+    try {
+        const oldProfile = load('nv_profile', null);
+
+        // Chỉ chuyển khi email hồ sơ cũ khớp tài khoản
+        if (
+            !oldProfile?.email ||
+            idOf({ email: oldProfile.email }) !== id
+        ) return false;
+
+        const keys = [
+            'nv_meals',
+            'nv_target',
+            'nv_weeks',
+            'nv_water',
+            'nv_workout',
+            'nv_plan',
+            'nv_profile'
+        ];
+
+        keys.forEach(key => {
+            const oldValue = localStorage.getItem(key);
+            const newKey = ukey(key, id);
+
+            if (
+                oldValue !== null &&
+                localStorage.getItem(newKey) === null
+            ) {
+                localStorage.setItem(newKey, oldValue);
+            }
+        });
+
+        keys.forEach(key => localStorage.removeItem(key));
+
+        return true;
+    } catch (error) {
+        console.error('Lỗi chuyển dữ liệu:', error);
+        return false;
+    }
+};
 export const dayKey = d => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD theo giờ máy
 
 export const getUser = () => { try { return JSON.parse(localStorage.getItem('nv_user') || sessionStorage.getItem('nv_user')); } catch { return null; } };
