@@ -6,6 +6,7 @@ export default function DiaryPage() {
     const {
         todayMeals, totalCal, targetCal, progress, calorieStatus, updateMealCategory, removeMeal,
     } = useApp();
+    const incompleteMeals = todayMeals.filter(m => !Number.isFinite(m.calories)).length;
 
     return (
         <div className="space-y-4">
@@ -21,6 +22,12 @@ export default function DiaryPage() {
                     {progress}%
                 </span>
             </div>
+
+            {incompleteMeals > 0 && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-semibold text-amber-900">
+                    {incompleteMeals} món chưa có dữ liệu dinh dưỡng, nên tổng kcal chỉ tính các món đã có số liệu.
+                </p>
+            )}
 
             <div className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center border-b pb-2">

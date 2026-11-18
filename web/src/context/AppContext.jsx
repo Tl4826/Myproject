@@ -305,24 +305,27 @@ export function AppProvider({ children }) {
     };
 
     const addMeal = (dish) => {
-        if (!dish?.hasNutrition || !Number.isFinite(dish.calories)) {
-            notify('Chưa có dữ liệu dinh dưỡng cho món này');
-            return;
+        if (typeof dish?.name !== 'string' || !dish.name.trim()) {
+            notify('Chưa có món ăn hợp lệ để lưu');
+            return false;
         }
+        // Món chưa có bảng dinh dưỡng vẫn được ghi nhật ký, không tự tạo kcal.
+        const hasNutrition = Number.isFinite(dish.calories);
         const newM = {
             id: Date.now().toString(),
             date: dayKey(new Date()),
             name: dish.name,
             category: mealByHour(),
-            calories: dish.calories,
-            protein: dish.protein,
-            carbs: dish.carbs,
-            fat: dish.fat,
+            calories: hasNutrition ? dish.calories : null,
+            protein: hasNutrition ? dish.protein : null,
+            carbs: hasNutrition ? dish.carbs : null,
+            fat: hasNutrition ? dish.fat : null,
             time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
             thumb: dish.thumb || null
         };
         setMeals(prev => [...prev, newM]);
         navigate('/diary');
+        return true;
     };
 
     const updateMealCategory = (id, category) => {
