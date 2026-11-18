@@ -56,7 +56,10 @@ export function AppProvider({ children }) {
     const notify = m => { setToast(m); setTimeout(() => setToast(''), 2500); };
     const [rememberMe, setRememberMe] = useState(true);
     const [authName, setAuthName] = useState('');
-    const [isLoggedIn, setIsLoggedIn] = useState(() => getUser()?.provider === 'email');
+    const [isLoggedIn, setIsLoggedIn] = useState(() => {
+        const u = getUser();
+        return Boolean(u && (u.provider === 'email' || !u.provider));
+    });
     const [userEmail, setUserEmail] = useState(() => getUser()?.name || getUser()?.email || '');
     const [isTeamOpen, setIsTeamOpen] = useState(false);
     const [isGuideOpen, setIsGuideOpen] = useState(false);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES } from '../lib/data.js';
+import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES, NUTRITION } from '../lib/data.js';
 import CountUp from '../components/CountUp.jsx';
 import GuideAccordion from '../components/GuideAccordion.jsx';
 import CameraCapture from '../components/CameraCapture.jsx';
@@ -75,7 +75,7 @@ export default function HomePage() {
                                             <button key={candidate.mon} type="button" onClick={() => chooseScannedDish(candidate.mon)}
                                                 aria-pressed={heroScannedDish.label === candidate.mon}
                                                 className={`rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-800 ${heroScannedDish.label === candidate.mon ? 'bg-emerald-100 ring-1 ring-emerald-500' : 'bg-white hover:bg-emerald-50'}`}>
-                                                {i + 1}. {candidate.mon} ({Math.round(candidate.do_tin_cay * 100)}%)
+                                                {i + 1}. {NUTRITION[candidate.mon]?.[0] || candidate.mon.replace(/_/g, ' ')} ({Math.round(candidate.do_tin_cay * 100)}%)
                                             </button>
                                         ))}
                                     </div>
@@ -84,7 +84,11 @@ export default function HomePage() {
                                         <select value={FOOD_CLASSES.includes(heroScannedDish.label) ? heroScannedDish.label : ''} onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
                                             className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
                                             <option value="">-- Chọn tên món đúng --</option>
-                                            {FOOD_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
+                                            {FOOD_CLASSES.map(label => (
+                                                <option key={label} value={label}>
+                                                    {NUTRITION[label] ? `${NUTRITION[label][0]} (${label})` : label.replace(/_/g, ' ')}
+                                                </option>
+                                            ))}
                                         </select>
                                     </label>
                                     {heroScannedDish.manuallySelected && (
