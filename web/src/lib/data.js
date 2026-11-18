@@ -101,8 +101,19 @@ export const migrateLegacy = id => {
         const oldProfile = load('nv_profile', null);
         const currentUser = getUser();
 
-        // Nếu hồ sơ cũ có email khác với id hiện tại, không chuyển
-        if (oldProfile?.email && idOf({ email: oldProfile.email }) !== id) {
+        // Chỉ chuyển dữ liệu nếu hồ sơ cũ thực sự thuộc về tài khoản này
+        if (!oldProfile?.email || idOf({ email: oldProfile.email }) !== id) {
+            // Xóa sạch các khóa dữ liệu không gắn ID để tránh rò rỉ sang tài khoản khác
+            const legacyKeys = [
+                'nv_meals',
+                'nv_target',
+                'nv_weeks',
+                'nv_water',
+                'nv_workout',
+                'nv_plan',
+                'nv_profile'
+            ];
+            legacyKeys.forEach(key => localStorage.removeItem(key));
             return false;
         }
         // Nếu tài khoản đang lưu có email khác với id hiện tại, không chuyển
