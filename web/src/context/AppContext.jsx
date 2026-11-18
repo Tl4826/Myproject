@@ -20,11 +20,11 @@ export function AppProvider({ children }) {
     const [today, setToday] = useState(() => dayKey(new Date()));
 
     const readMeals = id =>
-        uload('nv_meals', id ? [] : INITIAL_MEALS, id)
+        uload('nv_meals', [], id)
             .filter(m => m && typeof m.name === 'string' && !m.name.includes('Cà Phê'))
             .map(m => ({ date: dayKey(new Date()), ...m }));
 
-    const [meals, setMeals] = useState(() => readMeals(uid));
+    const [meals, setMeals] = useState(() => (uid ? readMeals(uid) : []));
     const [socialAccount, setSocialAccount] = useState(null);
     const navigate = useNavigate();
     const [heroScanState, setHeroScanState] = useState('idle');
@@ -364,7 +364,18 @@ export function AppProvider({ children }) {
     const switchUser = id => {
         setUid(id);
 
-        setMeals(id ? readMeals(id) : INITIAL_MEALS);
+        setHeroScanState('idle');
+        setHeroScannedDish(null);
+        setScanCandidates([]);
+        setScanOriginalPrediction(null);
+        setScanCorrectionSaved(false);
+        setScanErr('');
+
+        setEditPlan(false);
+        setPlanErr('');
+        setObErr('');
+
+        setMeals(id ? readMeals(id) : []);
         setTargetCal(id ? uload('nv_target', 1600, id) : 1600);
 
         const newProfile = id ? uload('nv_profile', null, id) : null;
@@ -396,7 +407,7 @@ export function AppProvider({ children }) {
 
         const newCorrections = id
             ? uload('nv_scan_corrections', [], id)
-            : load('nv_scan_corrections', []);
+            : [];
 
         setScanCorrections(
             Array.isArray(newCorrections) ? newCorrections : []
@@ -417,6 +428,15 @@ export function AppProvider({ children }) {
         const cloudMeals = await fetchSocialDiary();
         const nid = idOf(user);
         setUid(nid);
+        setHeroScanState('idle');
+        setHeroScannedDish(null);
+        setScanCandidates([]);
+        setScanOriginalPrediction(null);
+        setScanCorrectionSaved(false);
+        setScanErr('');
+        setEditPlan(false);
+        setPlanErr('');
+        setObErr('');
         setMeals(cloudMeals);
         setSocialAccount(user);
         const savedProfile = nid ? uload('nv_profile', null, nid) : null;
@@ -513,6 +533,16 @@ export function AppProvider({ children }) {
         try {
             localStorage.removeItem('nv_user');
             sessionStorage.removeItem('nv_user');
+            [
+                'nv_meals',
+                'nv_target',
+                'nv_weeks',
+                'nv_water',
+                'nv_workout',
+                'nv_plan',
+                'nv_profile',
+                'nv_scan_corrections'
+            ].forEach(k => localStorage.removeItem(k));
         } catch {}
 
         setSocialAccount(null);
@@ -520,6 +550,7 @@ export function AppProvider({ children }) {
 
         setIsLoggedIn(false);
         setUserEmail('');
+        setAuthName('');
         setIsOnboardOpen(false);
 
         notify('Đã đăng xuất');
