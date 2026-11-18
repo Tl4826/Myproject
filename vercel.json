@@ -10,6 +10,14 @@
   },
   "rewrites": [
     {
+      "source": "/api/social-auth",
+      "destination": "/api/social-auth.js"
+    },
+    {
+      "source": "/api/diary",
+      "destination": "/api/diary.js"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
     },

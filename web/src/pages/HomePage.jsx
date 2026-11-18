@@ -73,14 +73,15 @@ export default function HomePage() {
                                     <div className="flex flex-wrap gap-1.5">
                                         {scanCandidates.map((candidate, i) => (
                                             <button key={candidate.mon} type="button" onClick={() => chooseScannedDish(candidate.mon)}
-                                                className="rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-50">
+                                                aria-pressed={heroScannedDish.label === candidate.mon}
+                                                className={`rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-800 ${heroScannedDish.label === candidate.mon ? 'bg-emerald-100 ring-1 ring-emerald-500' : 'bg-white hover:bg-emerald-50'}`}>
                                                 {i + 1}. {candidate.mon} ({Math.round(candidate.do_tin_cay * 100)}%)
                                             </button>
                                         ))}
                                     </div>
                                     <label className="block text-[11px] font-semibold text-slate-700">
                                         Không đúng? Chọn trong 100 món:
-                                        <select value="" onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
+                                        <select value={FOOD_CLASSES.includes(heroScannedDish.label) ? heroScannedDish.label : ''} onChange={e => { if (e.target.value) chooseScannedDish(e.target.value); }}
                                             className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs">
                                             <option value="">-- Chọn tên món đúng --</option>
                                             {FOOD_CLASSES.map(label => <option key={label} value={label}>{label}</option>)}
@@ -99,19 +100,18 @@ export default function HomePage() {
                             )}
                             {heroScannedDish.hasNutrition
                                 ? <p className="text-[10px] text-amber-700 font-semibold">Dinh dưỡng ước tính theo khẩu phần tham khảo, không suy ra lượng ăn thực tế từ ảnh.</p>
-                                : <p className="text-[10px] text-amber-700 font-bold">AI đã nhận diện món ăn, nhưng chưa có dữ liệu dinh dưỡng để thêm nhật ký.</p>}
+                                : <p className="text-[10px] text-amber-700 font-bold">Chưa có dữ liệu dinh dưỡng cho món này. Bạn vẫn có thể lưu tên món vào nhật ký; món chưa được tính vào tổng kcal.</p>}
                             {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
-                            {heroScannedDish.hasNutrition && (
-                                <button onClick={() => {
-                                    const added = addMeal(heroScannedDish);
-
+                            {(
+                                <button onClick={async () => {
+                                    const added = await addMeal(heroScannedDish);
                                     if (added) {
                                         setHeroScanState('idle');
                                         notify('Đã thêm vào nhật ký');
                                     }
                                 }}
                                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">
-                                    LƯU ƯỚC TÍNH VÀO NHẬT KÝ
+                                    {heroScannedDish.hasNutrition ? 'LƯU ƯỚC TÍNH VÀO NHẬT KÝ' : 'LƯU TÊN MÓN VÀO NHẬT KÝ'}
                                 </button>
                             )}
                         </div>
