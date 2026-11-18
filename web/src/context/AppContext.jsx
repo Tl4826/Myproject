@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, load, dayKey,
+    USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, FOOD_CLASSES, load, dayKey,
     getUser, mealByHour, toThumb, suggestGoal, GOAL_LABEL, suggestDishes, computePlan,
     workoutToday, bmiInfo, INITIAL_MEALS,
     idOf, userId, ukey, uload, migrateLegacy,
@@ -275,7 +275,7 @@ export function AppProvider({ children }) {
     const rp = profile ? computePlan(profile, plan) : null;
     const pbmi = profile ? bmiInfo(profile.weight, profile.height) : null;
     const todayWorkout = profile ? workoutToday(profile) : null;
-    const dishes = rp ? suggestDishes(profile.goal, Math.max(rp.targetCal - totalCal, 0), rp.targetCal) : [];
+    const dishes = rp ? suggestDishes(Math.max(rp.targetCal - totalCal, 0), today) : [];
     const daysIn = plan ? Math.floor((new Date(today) - new Date(plan.startDate)) / 864e5) : 0;
     const totalDays = rp && plan ? rp.weeks * 7 : 0;
     const planPct = totalDays ? Math.min(100, Math.round((daysIn + 1) / totalDays * 100)) : 0;
@@ -400,6 +400,11 @@ export function AppProvider({ children }) {
         const nid = idOf(u);
 
         try {
+            // Xóa tài khoản cũ ở cả hai nơi để tránh lấy nhầm tài khoản.
+            localStorage.removeItem('nv_user');
+            sessionStorage.removeItem('nv_user');
+
+            // Lưu tài khoản hiện tại theo lựa chọn ghi nhớ.
             (rememberMe ? localStorage : sessionStorage)
                 .setItem('nv_user', JSON.stringify(u));
         } catch {}
@@ -621,8 +626,9 @@ export function AppProvider({ children }) {
     const addMeal = (dish) => {
         if (!dish?.hasNutrition || !Number.isFinite(dish.calories)) {
             notify('Chưa có dữ liệu dinh dưỡng cho món này');
-            return;
+            return false;
         }
+
         const newM = {
             id: Date.now().toString(),
             date: dayKey(new Date()),
@@ -632,11 +638,17 @@ export function AppProvider({ children }) {
             protein: dish.protein,
             carbs: dish.carbs,
             fat: dish.fat,
-            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            time: new Date().toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit'
+            }),
             thumb: dish.thumb || null
         };
+
         setMeals(prev => [...prev, newM]);
         navigate('/diary');
+
+        return true;
     };
 
     const updateMealCategory = (id, category) => {

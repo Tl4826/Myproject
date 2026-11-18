@@ -102,7 +102,14 @@ export default function HomePage() {
                                 : <p className="text-[10px] text-amber-700 font-bold">AI đã nhận diện món ăn, nhưng chưa có dữ liệu dinh dưỡng để thêm nhật ký.</p>}
                             {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
                             {heroScannedDish.hasNutrition && (
-                                <button onClick={() => { addMeal(heroScannedDish); setHeroScanState('idle'); notify('Đã thêm vào nhật ký'); }}
+                                <button onClick={() => {
+                                    const added = addMeal(heroScannedDish);
+
+                                    if (added) {
+                                        setHeroScanState('idle');
+                                        notify('Đã thêm vào nhật ký');
+                                    }
+                                }}
                                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">
                                     LƯU ƯỚC TÍNH VÀO NHẬT KÝ
                                 </button>
@@ -276,7 +283,18 @@ export default function HomePage() {
                                     <div className="text-xs font-extrabold text-slate-800">{d.name}</div>
                                     <div className="text-[10px] font-bold text-slate-500">{d.calories} kcal · P{d.protein} C{d.carbs} F{d.fat}</div>
                                 </div>
-                                <button onClick={() => { addMeal(d); notify('Đã thêm vào nhật ký'); }} className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-2.5 py-1.5 shrink-0">+ Thêm</button>
+                                <button
+                                    onClick={() => {
+                                        const added = addMeal(d);
+
+                                        if (added) {
+                                            notify('Đã thêm vào nhật ký');
+                                        }
+                                    }}
+                                    className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-2.5 py-1.5 shrink-0"
+                                >
+                                    + Thêm
+                                </button>
                             </div>
                         )) : <p className="text-[11px] text-slate-500 font-bold">{rp.targetCal - totalCal <= 0 ? '🎉 Bạn đã đủ calo hôm nay.' : 'Calo còn lại ít, hãy chọn món nhẹ hoặc uống thêm nước.'}</p>}
                         <p className="text-[9px] text-slate-400 font-bold italic">Gợi ý theo calo còn lại hôm nay · số liệu ước lượng 1 khẩu phần</p>
