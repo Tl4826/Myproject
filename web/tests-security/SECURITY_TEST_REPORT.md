@@ -182,3 +182,118 @@ khi sử dụng xác thực email/password trong môi trường thực tế.
 
 Kết quả bộ kiểm thử chức năng 60/60 PASSED trước đó
 được giữ riêng và không bị thay đổi.
+
+---
+
+## 10. Retest Results — Run 2
+
+### 10.1. Thông tin kiểm thử lại
+
+| Thuộc tính | Lần 1 | Lần 2 |
+|---|---|---|
+| Công cụ | Playwright | Playwright |
+| Trình duyệt | Chromium | Chromium |
+| Môi trường | Local Development | Local Development |
+| Tổng Test Case | 12 | 12 |
+| Passed | 6 | 6 |
+| Failed | 6 | 6 |
+| Pass Rate | 50% | 50% |
+| Thời gian chạy | 2.2 phút | 1.7 phút |
+
+Lệnh thực hiện lần 2:
+
+    npx.cmd playwright test --config=playwright.security.config.cjs --reporter=list,html
+
+### 10.2. So sánh kết quả từng Test Case
+
+| Test Case | Run 1 | Run 2 | Thay đổi |
+|---|---|---|---|
+| NV2-SEC-001 | PASSED | PASSED | Không |
+| NV2-SEC-002 | FAILED | FAILED | Không |
+| NV2-SEC-003 | FAILED | FAILED | Không |
+| NV2-SEC-004 | FAILED | FAILED | Không |
+| NV2-SEC-005 | FAILED | FAILED | Không |
+| NV2-SEC-006 | FAILED | FAILED | Không |
+| NV2-SEC-007 | FAILED | FAILED | Không |
+| NV2-SEC-008 | PASSED | PASSED | Không |
+| NV2-SEC-009 | PASSED | PASSED | Không |
+| NV2-SEC-010 | PASSED | PASSED | Không |
+| NV2-SEC-011 | PASSED | PASSED | Không |
+| NV2-SEC-012 | PASSED | PASSED | Không |
+
+### 10.3. Phân tích sáu Test Case tiếp tục FAILED
+
+**NV2-SEC-002 — Mật khẩu sai**
+
+- Expected: Từ chối đăng nhập, ở lại /login.
+- Actual Run 1: Chuyển đến /home.
+- Actual Run 2: Chuyển đến /home.
+- Status: UNRESOLVED.
+
+**NV2-SEC-003 — Email chưa đăng ký**
+
+- Expected: Từ chối đăng nhập.
+- Actual Run 1: Chuyển đến /home.
+- Actual Run 2: Chuyển đến /home.
+- Status: UNRESOLVED.
+
+**NV2-SEC-004 — Email đăng ký trùng**
+
+- Expected: Từ chối đăng ký email đã sử dụng.
+- Actual Run 1: Chuyển đến /home.
+- Actual Run 2: Chuyển đến /home.
+- Status: UNRESOLVED.
+
+**NV2-SEC-005 — Nhiều mật khẩu sai**
+
+- Expected: Từ chối mọi mật khẩu không chính xác.
+- Actual Run 1: Chuyển đến /home ở lần thử sai đầu tiên.
+- Actual Run 2: Chuyển đến /home ở lần thử sai đầu tiên.
+- Status: UNRESOLVED.
+
+**NV2-SEC-006 — Giả mạo localStorage**
+
+- Expected: Không cấp quyền truy cập khi dữ liệu phiên bị giả mạo.
+- Actual Run 1: Truy cập được /diary.
+- Actual Run 2: Truy cập được /diary.
+- Status: UNRESOLVED.
+
+**NV2-SEC-007 — Giả mạo sessionStorage**
+
+- Expected: Không cấp quyền truy cập khi dữ liệu phiên bị giả mạo.
+- Actual Run 1: Truy cập được /baocao.
+- Actual Run 2: Truy cập được /baocao.
+- Status: UNRESOLVED.
+
+### 10.4. Đánh giá kết quả kiểm thử lại
+
+- Số Test Case chuyển từ FAILED sang PASSED: 0.
+- Số Test Case chuyển từ PASSED sang FAILED: 0.
+- Số Test Case tiếp tục PASSED: 6.
+- Số Test Case tiếp tục FAILED: 6.
+- Không phát hiện thay đổi về trạng thái Pass/Fail.
+
+Sáu bài FAILED có cùng hành vi trong cả hai lần kiểm thử.
+Kết quả phù hợp với các hạn chế hiện tại của cơ chế
+đăng nhập email/password dạng prototype.
+
+### 10.5. Giới hạn xác minh
+
+Các bài kiểm thử xác nhận hành vi phía frontend.
+Việc truy cập được các trang /home, /diary và /baocao
+không chứng minh đã vượt qua phân quyền dữ liệu trên backend.
+
+Chưa xác minh cơ chế xác thực email/password thật,
+quyền truy cập Neon Database hoặc bảo vệ API riêng tư.
+
+### 10.6. Kết luận Retest
+
+**Run 1: 6 PASSED — 6 FAILED — 50%.**
+
+**Run 2: 6 PASSED — 6 FAILED — 50%.**
+
+**Kết quả: NO CHANGE — 6 ISSUES REMAIN UNRESOLVED.**
+
+Nhóm phát triển cần hoàn thiện xác thực tài khoản,
+mật khẩu và phiên đăng nhập trước khi kiểm thử lại.
+
