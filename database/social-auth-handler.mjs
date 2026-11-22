@@ -99,7 +99,8 @@ export default async function handler(req, res) {
     }
     const origin = req.headers.origin;
     const host = req.headers['x-forwarded-host'] || req.headers.host;
-    if (origin && (!host || new URL(origin).host !== host || !origin.startsWith('https://'))) {
+    const isLocal = host && (host.startsWith('localhost') || host.startsWith('127.0.0.1'));
+    if (origin && (!host || new URL(origin).host !== host || (!origin.startsWith('https://') && !isLocal))) {
         return json(res, 403, { error: 'Origin not allowed' });
     }
     const sql = neon(process.env.DATABASE_URL);

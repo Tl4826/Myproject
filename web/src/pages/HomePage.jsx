@@ -288,8 +288,8 @@ export default function HomePage() {
                                     <div className="text-[10px] font-bold text-slate-500">{d.calories} kcal · P{d.protein} C{d.carbs} F{d.fat}</div>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        const added = addMeal(d);
+                                    onClick={async () => {
+                                        const added = await addMeal(d);
 
                                         if (added) {
                                             notify('Đã thêm vào nhật ký');
