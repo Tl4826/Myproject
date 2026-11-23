@@ -7,6 +7,7 @@ export default function AuthForm({ mode }) {
     const {
         navigate, login, socialLogin, showPw, setShowPw, notify, rememberMe, setRememberMe,
         authName, setAuthName, userEmail, setUserEmail, handleAuthSubmit, fbLogin,
+        authPassword, setAuthPassword,
     } = useApp();
 
     // Esc: quay về trang giới thiệu
@@ -55,7 +56,7 @@ export default function AuthForm({ mode }) {
                         {mode === 'register' && <input type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Họ và tên" required className={glassInput} />}
                         <input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} placeholder="Email" required className={glassInput} />
                         <div className="relative">
-                            <input type={showPw ? 'text' : 'password'} placeholder="Mật khẩu" required minLength={6} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className={glassInput + ' pr-11'} />
+<input type={showPw ? 'text' : 'password'} value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Mật khẩu" required minLength={6} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className={glassInput + ' pr-11'} />
                             <button type="button" onClick={() => setShowPw(!showPw)} aria-label="Hiện/ẩn mật khẩu" className="absolute right-3 top-1/2 -translate-y-1/2">{showPw ? '🙈' : '👁️'}</button>
                         </div>
                         {mode === 'login' && (
