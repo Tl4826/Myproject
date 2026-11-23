@@ -25,7 +25,8 @@ export default async function handler(req, res) {
     return send(res,405,{error:'Method not allowed'});
   }
   const origin = req.headers.origin, host = req.headers['x-forwarded-host'] || req.headers.host;
-  if (origin && (!host || !origin.startsWith('https://') || new URL(origin).host !== host))
+  const isLocal = host && (host.startsWith('localhost') || host.startsWith('127.0.0.1'));
+  if (origin && (!host || (!origin.startsWith('https://') && !isLocal) || new URL(origin).host !== host))
     return send(res,403,{error:'Origin not allowed'});
   const sql = neon(process.env.DATABASE_URL);
   try {
