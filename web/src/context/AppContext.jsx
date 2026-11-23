@@ -60,6 +60,7 @@ export function AppProvider({ children }) {
     const notify = m => { setToast(m); setTimeout(() => setToast(''), 2500); };
     const [rememberMe, setRememberMe] = useState(true);
     const [authName, setAuthName] = useState('');
+    const [authPassword, setAuthPassword] = useState('');
     const [isLoggedIn, setIsLoggedIn] = useState(() => {
         const u = getUser();
         return Boolean(u && (u.provider === 'email' || !u.provider));
@@ -556,10 +557,33 @@ export function AppProvider({ children }) {
         notify('Đã đăng xuất');
         navigate('/');
     };
-    const handleAuthSubmit = (e, mode) => {
+       const handleAuthSubmit = async (e, mode) => {
         e.preventDefault();
-        login({ email: userEmail, name: authName, provider: 'email' }, mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
-        setAuthName('');
+        const email = userEmail.trim().toLowerCase();
+        const post = (url, body) => fetch(url, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        try {
+            if (mode === 'register') {
+                const r = await post('/api/register', { email, password: authPassword });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.error || 'Đăng ký không thành công');
+            }
+            const r = await post('/api/login', { email, password: authPassword });
+            const d = await r.json().catch(() => ({}));
+            if (!r.ok || !d.user) throw new Error(d.error || 'Đăng nhập không thành công');
+
+            login(
+                { id: d.user.id, email: d.user.email, name: mode === 'register' ? authName : '', provider: 'email' },
+                mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined
+            );
+            setAuthName('');
+            setAuthPassword('');
+        } catch (err) {
+            notify(err.message || 'Không kết nối được máy chủ');
+        }
     };
     const fbLogin = () => {
         if (!FACEBOOK_APP_ID || !window.FB)
@@ -804,7 +828,7 @@ export function AppProvider({ children }) {
         scanCandidates, scanCorrections, scanCorrectionSaved, chooseScannedDish,
         saveScanCorrection, exportScanCorrections, clearScanCorrections,
         totalCal, targetCal, remainingCal, progress, calorieStatus, showPw, setShowPw, toast,
-        notify, rememberMe, setRememberMe, authName, setAuthName, isLoggedIn, userEmail,
+        notify, rememberMe, setRememberMe, authName, setAuthName, authPassword, setAuthPassword, isLoggedIn, userEmail,
         setUserEmail, isTeamOpen, setIsTeamOpen, isGuideOpen, setIsGuideOpen, isOnboardOpen,
         setIsOnboardOpen, obName, setObName, obAge, setObAge, obGender, setObGender, obHeight,
         setObHeight, obWeight, setObWeight, obActivity, setObActivity, obGoal, setObGoal, profile,
