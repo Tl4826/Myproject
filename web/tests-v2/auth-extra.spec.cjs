@@ -76,7 +76,7 @@ test('NV2-AUTH-012 | Phím Escape quay về trang giới thiệu', async ({ page
 
   await page.keyboard.press('Escape');
 
-  await expect(page).toHaveURL(/localhost:5174\/?$/);
+ await expect(page).toHaveURL(new RegExp(`^${test.info().project.use.baseURL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
 });
 
 // SESSION
