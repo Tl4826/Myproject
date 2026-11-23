@@ -11,8 +11,9 @@ import { AppProvider, useApp } from './context/AppContext.jsx';
 
 // Mỗi màn hình = 1 URL (HashRouter), ví dụ: /#/login, /#/home
 function AppRoutes() {
-    const { toast, isLoggedIn, isOnboardOpen } = useApp();
+    const { toast, isLoggedIn, isOnboardOpen, authChecking } = useApp();
     const guestOnly = page => isLoggedIn ? <Navigate to="/home" replace /> : page;   // đã đăng nhập thì vào thẳng /home
+    if (authChecking) return <div role="status" className="min-h-screen flex items-center justify-center">Đang xác minh phiên đăng nhập...</div>;
 
     return (
         <div className={`min-h-screen ${isLoggedIn ? 'pb-12' : 'bg-slate-50'}`}>

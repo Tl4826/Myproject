@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS social_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider TEXT NOT NULL CHECK (provider IN ('google', 'facebook')),
+    provider TEXT NOT NULL CHECK (provider IN ('google', 'facebook', 'email')),
     provider_user_id TEXT NOT NULL,
     email TEXT,
     display_name TEXT NOT NULL DEFAULT '',
@@ -41,3 +41,16 @@ CREATE TABLE IF NOT EXISTS user_diary_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_diary_user_date
     ON user_diary_entries (user_id, eaten_on DESC);
+
+
+-- Apply this change to databases created before email/password sign-in was added.
+ALTER TABLE social_users DROP CONSTRAINT IF EXISTS social_users_provider_check;
+ALTER TABLE social_users ADD CONSTRAINT social_users_provider_check
+  CHECK (provider IN ('google', 'facebook', 'email'));
+
+CREATE TABLE IF NOT EXISTS email_credentials (
+  user_id UUID PRIMARY KEY REFERENCES social_users(id) ON DELETE CASCADE,
+  normalized_email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  CONSTRAINT normalized_email_lowercase CHECK (normalized_email = lower(trim(normalized_email)))
+);

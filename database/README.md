@@ -49,8 +49,8 @@ verified token user ID. The browser never decides the authenticated identity.
 - Social users' diary entries are persisted in Neon and isolated per account.
 - The onboarded profile and nutrition plan are still local per device; cloud
   profile synchronization is **not** implemented.
-- The existing email/password form is **local-only demo behavior**, not a real
-  password-authenticated server account. Do not represent it as secure email auth.
+- The previous local-only email demo was replaced by a backend-authenticated
+  email flow; apply the migration and deploy before using it.
 - Old browser-wide `nv_meals` data is left intact as a backup, but is not
   blindly migrated because its owner cannot be safely determined.
 
@@ -66,3 +66,24 @@ verified token user ID. The browser never decides the authenticated identity.
    predictions still offer Top-3 choices.
 
 **Never paste Google/Facebook secrets or Neon database passwords into chat or source control.**
+
+
+## Email/password authentication (new, requires database migration and deployment)
+
+- Apply the updated `database/schema.sql` to the existing Neon database.
+  It expands the social_users provider check to include `email` and creates
+  `email_credentials` with a database-unique normalized email.
+- Deploy the Vercel function `/api/email-auth` and route it before the Python
+  catch-all. The email form sends `POST /api/email-auth` with an action
+  `register` or `login`; it no longer logs in directly from browser storage.
+- Passwords use salted scrypt hashes. Sign-in issues the same random HttpOnly
+  cookie used by Google/Facebook; a valid session is required before private
+  frontend routes render after refresh. Diary endpoints already verify the
+  cookie against server-side `social_sessions`.
+- Existing local-only email users have no saved passwords and cannot be migrated
+  automatically. They must register a new server account; local diary/profile
+  data remains device-scoped for email accounts.
+- Unit-test password verification: `node --test database/password-kdf.test.mjs`.
+- The Playwright security suite uses an isolated mocked auth backend. A real
+  database/API integration retest is still required before claiming the
+  vulnerabilities fixed in production.

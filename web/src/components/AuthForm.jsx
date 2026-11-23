@@ -73,7 +73,7 @@ export default function AuthForm({ mode }) {
                         </button>
                     </form>
 
-                    <p className="text-center text-[10px] text-white/80">Đăng nhập email hiện chỉ dùng dữ liệu trên thiết bị; Google/Facebook sẽ lưu nhật ký riêng khi được cấu hình.</p>
+                    <p className="text-center text-[10px] text-white/80">Đăng nhập email được xác minh trên máy chủ. Nhật ký Google/Facebook lưu riêng khi đã cấu hình.</p>
                     <div className="space-y-2.5 text-sm">
                         <div className="flex items-center text-[11px] text-white/70 font-bold"><span className="flex-1 border-t border-white/30"></span><span className="px-3">HOẶC</span><span className="flex-1 border-t border-white/30"></span></div>
                         {GOOGLE_CLIENT_ID
