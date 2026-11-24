@@ -12,11 +12,8 @@ export const useApp = () => useContext(AppContext);
 
 // Toàn bộ state + hàm xử lý dùng chung của ứng dụng (trước đây nằm trong NutriApp)
 export function AppProvider({ children }) {
-    const [uid, setUid] = useState(() => {
-        const id = userId();
-        if (id) migrateLegacy(id);
-        return id;
-    });
+    // Browser storage is only a UI cache; a server-verified cookie gates access.
+    const [uid, setUid] = useState('');
     const [today, setToday] = useState(() => dayKey(new Date()));
 
     const readMeals = id =>
@@ -60,11 +57,10 @@ export function AppProvider({ children }) {
     const notify = m => { setToast(m); setTimeout(() => setToast(''), 2500); };
     const [rememberMe, setRememberMe] = useState(true);
     const [authName, setAuthName] = useState('');
-    const [isLoggedIn, setIsLoggedIn] = useState(() => {
-        const u = getUser();
-        return Boolean(u && (u.provider === 'email' || !u.provider));
-    });
-    const [userEmail, setUserEmail] = useState(() => getUser()?.name || getUser()?.email || '');
+    const [authPassword, setAuthPassword] = useState('');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [authChecking, setAuthChecking] = useState(true);
+    const [userEmail, setUserEmail] = useState('');
     const [isTeamOpen, setIsTeamOpen] = useState(false);
     const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -457,18 +453,47 @@ export function AppProvider({ children }) {
     };
 
     useEffect(() => {
-        if (getUser()?.provider === 'email') return;
         let active = true;
         (async () => {
             try {
+                // Revalidate the HttpOnly cookie on every fresh page load.
                 const res = await fetch('/api/social-auth', { credentials: 'same-origin' });
-                if (!res.ok) {
-                    try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
-                    return;
-                }
+                if (!res.ok) throw new Error('Session not verified');
                 const data = await res.json();
-                if (active && data.user) await activateSocialAccount(data.user);
-            } catch { /* Không chấp nhận trạng thái login chưa được xác minh. */ }
+                if (!active || !data.user) return;
+                if (data.user.provider === 'email') {
+                    const u = data.user;
+                    const nid = idOf(u);
+                    const cached = getUser();
+                    const name = cached?.provider === 'email' && cached.email === u.email
+                        ? cached.name || u.name : u.name;
+                    const verified = { ...u, name };
+                    const storage = localStorage.getItem('nv_user') ? localStorage : sessionStorage;
+                    try {
+                        localStorage.removeItem('nv_user');
+                        sessionStorage.removeItem('nv_user');
+                        storage.setItem('nv_user', JSON.stringify(verified));
+                    } catch {}
+                    migrateLegacy(nid);
+                    switchUser(nid);
+                    setSocialAccount(null);
+                    setUserEmail(name || u.email);
+                    setIsLoggedIn(true);
+                } else if (['google', 'facebook'].includes(data.user.provider)) {
+                    await activateSocialAccount(data.user);
+                }
+            } catch {
+                if (!active) return;
+                try {
+                    localStorage.removeItem('nv_user');
+                    sessionStorage.removeItem('nv_user');
+                } catch {}
+                setSocialAccount(null);
+                switchUser('');
+                setIsLoggedIn(false);
+            } finally {
+                if (active) setAuthChecking(false);
+            }
         })();
         return () => { active = false; };
     }, []);
@@ -503,6 +528,7 @@ export function AppProvider({ children }) {
 
         migrateLegacy(nid);
         switchUser(nid);
+        setSocialAccount(null);
 
         setIsLoggedIn(true);
         setUserEmail(u.name || u.email || '');
@@ -524,11 +550,15 @@ export function AppProvider({ children }) {
         }
     };
 
-    const logout = () => {
-        if (socialAccount) {
-            fetch('/api/social-auth', {
+    const logout = async () => {
+        try {
+            const res = await fetch('/api/social-auth', {
                 method: 'DELETE', credentials: 'same-origin'
-            }).catch(() => {});
+            });
+            if (!res.ok && res.status !== 401) throw new Error('Logout failed');
+        } catch {
+            notify('Không thể đăng xuất trên máy chủ. Vui lòng thử lại.');
+            return;
         }
         try {
             localStorage.removeItem('nv_user');
@@ -556,10 +586,29 @@ export function AppProvider({ children }) {
         notify('Đã đăng xuất');
         navigate('/');
     };
-    const handleAuthSubmit = (e, mode) => {
+    const handleAuthSubmit = async (e, mode) => {
         e.preventDefault();
-        login({ email: userEmail, name: authName, provider: 'email' }, mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
-        setAuthName('');
+        try {
+            const r = await fetch('/api/email-auth', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: mode === 'register' ? 'register' : 'login',
+                    email: userEmail.trim().toLowerCase(),
+                    password: authPassword,
+                    name: mode === 'register' ? authName : undefined,
+                    remember: rememberMe
+                })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || !data.user) throw new Error(data.error || 'Đăng nhập không thành công');
+            // Only a verified server response can activate the UI session.
+            login(data.user, mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
+            setAuthName('');
+            setAuthPassword('');
+        } catch (err) {
+            notify(err.message || 'Không kết nối được máy chủ');
+        }
     };
     const fbLogin = () => {
         if (!FACEBOOK_APP_ID || !window.FB)
@@ -804,7 +853,7 @@ export function AppProvider({ children }) {
         scanCandidates, scanCorrections, scanCorrectionSaved, chooseScannedDish,
         saveScanCorrection, exportScanCorrections, clearScanCorrections,
         totalCal, targetCal, remainingCal, progress, calorieStatus, showPw, setShowPw, toast,
-        notify, rememberMe, setRememberMe, authName, setAuthName, isLoggedIn, userEmail,
+        notify, rememberMe, setRememberMe, authName, setAuthName, authPassword, setAuthPassword, isLoggedIn, authChecking, userEmail,
         setUserEmail, isTeamOpen, setIsTeamOpen, isGuideOpen, setIsGuideOpen, isOnboardOpen,
         setIsOnboardOpen, obName, setObName, obAge, setObAge, obGender, setObGender, obHeight,
         setObHeight, obWeight, setObWeight, obActivity, setObActivity, obGoal, setObGoal, profile,

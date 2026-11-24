@@ -10,6 +10,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/email-auth",
+      "destination": "/api/email-auth.js"
+    },
+    {
       "source": "/api/social-auth",
       "destination": "/api/social-auth.js"
     },
