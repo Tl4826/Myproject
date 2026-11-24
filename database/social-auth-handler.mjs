@@ -130,8 +130,9 @@ export default async function handler(req, res) {
                 INSERT INTO social_sessions (token_hash, user_id, expires_at)
                 VALUES (${sha256(raw)}, ${user.id}, now() + INTERVAL '7 days')
             `;
+            const secure = isLocal ? '' : '; Secure';
             res.setHeader('Set-Cookie',
-                `${SESSION_COOKIE}=${raw}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
+                `${SESSION_COOKIE}=${raw}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
             return json(res, 200, { user: { id: user.id, provider: user.provider,
                 email: user.email, name: user.display_name, avatar: user.avatar_url } });
         }
@@ -139,7 +140,8 @@ export default async function handler(req, res) {
         if (!/^[0-9a-f]{64}$/.test(raw)) return json(res, 401, { error: 'Not signed in' });
         if (req.method === 'DELETE') {
             await sql`DELETE FROM social_sessions WHERE token_hash = ${sha256(raw)}`;
-            res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+            const secure = isLocal ? '' : '; Secure';
+            res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=0`);
             return json(res, 200, { ok: true });
         }
         const rows = await sql`

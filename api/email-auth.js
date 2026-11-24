@@ -39,7 +39,7 @@ async function setSession(sql, req, res, user, remember) {
   const hash = createHash('sha256').update(token).digest('hex');
   const lifetime = remember ? 7 * 86400 : 86400;
   await sql`INSERT INTO social_sessions (token_hash, user_id, expires_at)
-    VALUES (${hash}, ${user.id}, now() + (${lifetime} * INTERVAL '1 second'))`;
+    VALUES (${hash}, ${user.id}, now() + (${lifetime} || ' seconds')::interval)`;
   const host = req.headers['x-forwarded-host'] || req.headers.host || '';
   const secure = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? '' : '; Secure';
   const duration = remember ? '; Max-Age=' + lifetime : '';
@@ -95,6 +95,7 @@ export default async function handler(req, res) {
       if (!rows.length || !(await verifyPassword(password, rows[0].password_hash)))
         return response(res, 401, { error: 'Sai email hoặc mật khẩu' });
       user = rows[0];
+      await sql`UPDATE social_users SET last_login_at = now() WHERE id = ${user.id}`;
     }
     await setSession(sql, req, res, user, body.remember !== false);
     return response(res, action === 'register' ? 201 : 200, { user: safeUser(user) });
