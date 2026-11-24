@@ -1,15 +1,10 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 const EMAIL = 'reports-qa@example.com';
 
 async function login(page) {
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: '{"error":"QA isolated"}'
-    })
-  );
+  await mockAuth(page);
 
   await page.goto('/login');
   await page.getByPlaceholder('Email').fill(EMAIL);

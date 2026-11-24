@@ -1,4 +1,5 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 const EMAIL = 'nutrition-qa@example.com';
 
@@ -31,13 +32,7 @@ async function profile(page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: '{"error":"QA isolated"}'
-    })
-  );
+  await mockAuth(page);
   await page.route('**/predict', route => route.abort());
 
   await page.goto('/login');

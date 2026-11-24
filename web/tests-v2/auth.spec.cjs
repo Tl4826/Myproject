@@ -1,15 +1,10 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 test.beforeEach(async ({ page }) => {
   // Chặn API backend của ứng dụng trong nhóm smoke test.
   // Không để bài test tự tạo session hay thay đổi Neon.
-  await page.route('**/api/**', route => {
-    return route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: 'QA isolated test' })
-    });
-  });
+  await mockAuth(page);
 });
 
 test('NV2-AUTH-001 | Trang đăng nhập hiển thị', async ({ page }) => {

@@ -1,14 +1,9 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 // Cách ly backend: không gửi request tới Neon production.
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: 'QA isolated test' })
-    })
-  );
+  await mockAuth(page);
 });
 
 async function loginEmail(page, remember = true) {
@@ -125,13 +120,7 @@ test('NV2-SESSION-005 | Browser context mới không kế thừa đăng nhập',
   try {
     const page = await context.newPage();
 
-    await page.route('**/api/**', route =>
-      route.fulfill({
-        status: 401,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'QA isolated test' })
-      })
-    );
+    await mockAuth(page);
 
     await page.goto('/diary');
     await expect(page).toHaveURL(/\/login$/);

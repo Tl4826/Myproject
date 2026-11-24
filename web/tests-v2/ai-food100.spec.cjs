@@ -1,4 +1,5 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 // NutriVN 2.0 — 12 test AI Food100
 // Chỉ kiểm tra frontend bằng Mock API.
@@ -40,13 +41,7 @@ async function mockPredict(page, data = result(), status = 200) {
 
 test.beforeEach(async ({ page }) => {
   // Chặn mọi yêu cầu tới các endpoint dùng chung của ứng dụng.
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: 'QA isolated' })
-    })
-  );
+  await mockAuth(page);
 
   // Chặn API nhận diện thực trước khi thao tác upload.
   await page.route('**/predict', route =>
