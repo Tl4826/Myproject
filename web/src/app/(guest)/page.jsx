@@ -1,6 +1,8 @@
-import { tilt } from '../lib/data.js';
-import FruitScene from '../components/FruitScene.jsx';
-import { useApp } from '../context/AppContext.jsx';
+'use client';
+
+import { tilt } from '../../lib/data.js';
+import FruitScene from '../../components/FruitScene.jsx';
+import { useApp } from '../../context/AppContext.jsx';
 
 export default function LandingPage() {
     const { navigate } = useApp();

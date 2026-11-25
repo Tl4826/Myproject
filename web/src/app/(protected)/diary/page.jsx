@@ -1,6 +1,8 @@
-import { MEAL_TYPES } from '../lib/data.js';
-import MealDiaryItem from '../components/MealDiaryItem.jsx';
-import { useApp } from '../context/AppContext.jsx';
+'use client';
+
+import { MEAL_TYPES } from '../../../lib/data.js';
+import MealDiaryItem from '../../../components/MealDiaryItem.jsx';
+import { useApp } from '../../../context/AppContext.jsx';
 
 export default function DiaryPage() {
     const {

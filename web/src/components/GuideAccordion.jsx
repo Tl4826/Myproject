@@ -1,3 +1,5 @@
+'use client';
+
 import { GUIDE } from '../lib/data.js';
 
 const GuideAccordion = ({ isOpen, onToggle }) => (

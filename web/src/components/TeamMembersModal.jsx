@@ -1,3 +1,5 @@
+'use client';
+
 import { TEAM_MEMBERS } from '../lib/data.js';
 
 const TeamMembersModal = ({ onClose }) => (

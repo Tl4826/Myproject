@@ -1,3 +1,5 @@
+'use client';
+
 import { MEAL_TYPES } from '../lib/data.js';
 
 const MealDiaryItem = ({ meal, onCategoryChange, onRemove }) => (
