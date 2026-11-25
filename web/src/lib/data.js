@@ -1,13 +1,13 @@
 // ===== CẤU HÌNH =====
 export const USE_DEMO = false;                     // true: demo 1 món (chưa có backend) | false: gọi API /predict của Thanh
 
-export const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');   // API /predict của Thanh, cấu hình trong .env
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || '/api').replace(/\/+$/, '');   // API /predict của Thanh, cấu hình trong .env
 
 export const UPLOAD_FIELD = 'file';               // tên field ảnh trong FastAPI (đổi nếu khác)
 
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';               // dán Google Client ID vào đây
+export const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';               // dán Google Client ID vào đây
 
-export const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';                // dán Facebook App ID vào đây
+export const FACEBOOK_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';                // dán Facebook App ID vào đây
 
 export const FRUITS = [['🍎', 6, 10, 64, 60], ['🥑', 80, 8, 72, -60], ['🍜', 8, 68, 80, 100], ['🍣', 78, 70, 68, 40], ['🥕', 45, 3, 54, -120], ['🍋', 88, 40, 50, -40], ['🍓', 2, 40, 46, -100], ['🥦', 46, 86, 58, 80]]; // [emoji, trái%, trên%, cỡ chữ, độ sâu Z]
 
@@ -68,7 +68,7 @@ export const NUTRITION = {
     'Com tam': ['Cơm tấm (ước tính theo cơm tấm sườn)', 520, 32, 58, 16]
 };
 
-export const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+export const load = (k, d) => { if (typeof window === 'undefined') return d; try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 // Chuẩn hóa ID tài khoản
 export const idOf = user => {
     if (!user) return '';
@@ -84,7 +84,7 @@ export const ukey = (key, id) => `${key}:${id}`;
 
 // Đọc dữ liệu riêng của tài khoản
 export const uload = (key, fallback, id) => {
-    if (!id) return fallback;
+    if (!id || typeof window === 'undefined') return fallback;
     try {
         const value = localStorage.getItem(ukey(key, id));
         return value === null ? fallback : JSON.parse(value);
@@ -153,7 +153,7 @@ export const migrateLegacy = id => {
 };
 export const dayKey = d => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD theo giờ máy
 
-export const getUser = () => { try { return JSON.parse(localStorage.getItem('nv_user') || sessionStorage.getItem('nv_user')); } catch { return null; } };
+export const getUser = () => { if (typeof window === 'undefined') return null; try { return JSON.parse(localStorage.getItem('nv_user') || sessionStorage.getItem('nv_user')); } catch { return null; } };
 
 export const mealByHour = () => { const h = new Date().getHours(); return h < 5 || h >= 21 ? 'snack' : h < 10 ? 'breakfast' : h < 14 ? 'lunch' : h < 17 ? 'afternoon' : 'dinner'; };
 

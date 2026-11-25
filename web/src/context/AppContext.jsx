@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+'use client';
+
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, FOOD_CLASSES, load, dayKey,
     getUser, mealByHour, toThumb, suggestGoal, GOAL_LABEL, suggestDishes, computePlan,
@@ -23,7 +25,11 @@ export function AppProvider({ children }) {
 
     const [meals, setMeals] = useState(() => (uid ? readMeals(uid) : []));
     const [socialAccount, setSocialAccount] = useState(null);
-    const navigate = useNavigate();
+    const router = useRouter();
+    const navigate = useCallback((path, options) => {
+        if (options?.replace) router.replace(path);
+        else router.push(path);
+    }, [router]);
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
     const [scanErr, setScanErr] = useState('');
@@ -325,7 +331,7 @@ export function AppProvider({ children }) {
         if (!FACEBOOK_APP_ID) return;
         const sc = document.createElement('script');
         sc.src = 'https://connect.facebook.net/vi_VN/sdk.js'; sc.async = true;
-        sc.onload = () => FB.init({ appId: FACEBOOK_APP_ID, version: 'v23.0', cookie: false, xfbml: false });
+        sc.onload = () => window.FB?.init({ appId: FACEBOOK_APP_ID, version: 'v23.0', cookie: false, xfbml: false });
         document.body.appendChild(sc);
     }, []);
 
@@ -613,7 +619,7 @@ export function AppProvider({ children }) {
     const fbLogin = () => {
         if (!FACEBOOK_APP_ID || !window.FB)
             return notify('Facebook Login chưa được cấu hình hoặc SDK chưa tải xong');
-        FB.login(r => {
+        window.FB.login(r => {
             if (r.authResponse?.accessToken) socialLogin('facebook', r.authResponse.accessToken);
             else notify('Bạn chưa cấp quyền đăng nhập Facebook');
         }, { scope: 'public_profile,email' });
