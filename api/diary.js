@@ -1,3 +1,4 @@
+import { reportServiceError } from '../database/error-monitor.mjs';
 import { neon } from '@neondatabase/serverless';
 import { getAuthenticatedUser } from '../database/social-auth-handler.mjs';
 
@@ -64,6 +65,7 @@ export default async function handler(req, res) {
       WHERE id = ${id} AND user_id = ${user.id} RETURNING id`;
     return send(res,rows.length?200:404,{ok:!!rows.length});
   } catch (_) {
+    await reportServiceError('diary_unavailable');
     return send(res,503,{error:'Nhật ký tạm thời không kết nối được database'});
   }
 }
