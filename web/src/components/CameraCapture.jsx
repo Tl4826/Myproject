@@ -1,3 +1,5 @@
+'use client';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 // The captured image stays on this device until the user explicitly chooses "Dùng ảnh".

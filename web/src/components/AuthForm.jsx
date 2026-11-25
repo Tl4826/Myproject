@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect } from 'react';
 import { GOOGLE_CLIENT_ID, tilt, glassInput } from '../lib/data.js';
 import FruitScene from './FruitScene.jsx';

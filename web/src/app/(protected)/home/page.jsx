@@ -1,9 +1,11 @@
+'use client';
+
 import { useState } from 'react';
-import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES, NUTRITION } from '../lib/data.js';
-import CountUp from '../components/CountUp.jsx';
-import GuideAccordion from '../components/GuideAccordion.jsx';
-import CameraCapture from '../components/CameraCapture.jsx';
-import { useApp } from '../context/AppContext.jsx';
+import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES, NUTRITION } from '../../../lib/data.js';
+import CountUp from '../../../components/CountUp.jsx';
+import GuideAccordion from '../../../components/GuideAccordion.jsx';
+import CameraCapture from '../../../components/CameraCapture.jsx';
+import { useApp } from '../../../context/AppContext.jsx';
 
 export default function HomePage() {
     const {
@@ -181,7 +183,7 @@ export default function HomePage() {
                         </div>
                     </div>
                 </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-3 gap-2 text-center">
                     {[['Protein', 'protein', 'bg-sky-100 text-sky-700'], ['Carbs', 'carbs', 'bg-amber-100 text-amber-700'], ['Fat', 'fat', 'bg-rose-100 text-rose-700']].map(([name, k, c]) => (
                         <div key={k} className={`rounded-xl py-1.5 ${c}`}>
                             <div className="text-[10px] font-bold">{name}</div>

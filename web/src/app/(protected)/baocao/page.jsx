@@ -1,4 +1,6 @@
-import { useApp } from '../context/AppContext.jsx';
+'use client';
+
+import { useApp } from '../../../context/AppContext.jsx';
 
 export default function ReportsPage() {
     const {
@@ -116,7 +118,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="pt-2">
-                    <button 
+                    <button
                         onClick={handleSaveWeekToDevice} disabled={!loggedDays.length}
                         className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer"
                     >

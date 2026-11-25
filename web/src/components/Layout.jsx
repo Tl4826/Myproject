@@ -1,12 +1,15 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import TeamMembersModal from './TeamMembersModal.jsx';
 import { useApp } from '../context/AppContext.jsx';
 import PageBackground from './PageBackground.jsx';
 
-const tabCls = ({ isActive }) => `px-3 py-1.5 rounded-xl transition-all active:scale-[.97] ${isActive ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`;
+const tabCls = isActive => `px-3 py-1.5 rounded-xl transition-all active:scale-[.97] ${isActive ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`;
 
-export default function Layout() {
-    const { pathname } = useLocation();
+export default function Layout({ children }) {
+    const pathname = usePathname();
     const { navigate, isLoggedIn, userEmail, isTeamOpen, setIsTeamOpen, logout } = useApp();
 
     return (
@@ -34,9 +37,9 @@ export default function Layout() {
                     </div>
 
                     <nav className="flex items-center space-x-1 bg-slate-100 p-1 rounded-2xl text-xs font-extrabold w-full sm:w-auto justify-between sm:justify-start">
-                        <NavLink to="/home" className={tabCls}>🏠 Trang chủ</NavLink>
-                        <NavLink to="/diary" className={tabCls}>📖 Nhật ký</NavLink>
-                        <NavLink to="/baocao" className={tabCls}>📊 Báo cáo</NavLink>
+                        <Link href="/home" aria-current={pathname === '/home' ? 'page' : undefined} className={tabCls(pathname === '/home')}>🏠 Trang chủ</Link>
+                        <Link href="/diary" aria-current={pathname === '/diary' ? 'page' : undefined} className={tabCls(pathname === '/diary')}>📖 Nhật ký</Link>
+                        <Link href="/baocao" aria-current={pathname === '/baocao' ? 'page' : undefined} className={tabCls(pathname === '/baocao')}>📊 Báo cáo</Link>
                     </nav>
 
                     <button onClick={isLoggedIn ? logout : () => navigate('/login')} className="hidden sm:block px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all">
@@ -54,7 +57,7 @@ export default function Layout() {
             </section>
 
             <main key={pathname} className="fade max-w-xl mx-auto px-3 pt-4 space-y-4">
-                <Outlet />
+                {children}
             </main>
 
             <footer className="max-w-xl mx-auto mt-8 px-4 py-4 border-t border-slate-200 text-center space-y-2 text-xs">
