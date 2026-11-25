@@ -1,3 +1,4 @@
+import { reportServiceError } from '../database/error-monitor.mjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
 import { hashPassword, verifyPassword } from '../database/password-kdf.mjs';
@@ -102,6 +103,7 @@ export default async function handler(req, res) {
   } catch (error) {
     if (error.code === '23505')
       return response(res, 409, { error: 'Email này đã được đăng ký' });
+    await reportServiceError('email_auth_unavailable');
     // No credentials, token, SQL or database connection secrets in error responses.
     return response(res, 503, { error: 'Dịch vụ đăng nhập chưa sẵn sàng' });
   }
