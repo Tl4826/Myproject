@@ -1,3 +1,4 @@
+import { reportServiceError } from './error-monitor.mjs';
 // Staged implementation: not routed from /api/ until database + OAuth secrets exist.
 // Move this into a Vercel Node function only after applying schema.sql and configuring
 // DATABASE_URL, GOOGLE_CLIENT_ID, FACEBOOK_APP_ID, FACEBOOK_APP_SECRET.
@@ -156,6 +157,7 @@ export default async function handler(req, res) {
     } catch (err) {
         // Never log credentials, access tokens, emails, app secret or DATABASE_URL.
         const isAuthFailure = /Google|Facebook|token|claims|signature|mismatch|key/i.test(err.message || '');
+        if (!isAuthFailure) await reportServiceError('social_auth_unavailable');
         return json(res, isAuthFailure ? 401 : 503,
             { error: isAuthFailure ? 'Không xác minh được tài khoản' : 'Dịch vụ đăng nhập chưa sẵn sàng' });
     }
