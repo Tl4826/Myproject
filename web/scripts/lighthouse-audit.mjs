@@ -9,7 +9,7 @@ for (const path of ['/','/diary','/baocao']) {
   try {
     const page=await browser.newPage();
     if(path!=='/'){
-      await page.goto(origin+'/login',{waitUntil:'networkidle0'});
+      await page.goto(origin+'/login',{waitUntil:'domcontentloaded',timeout:60000});
       const email='lh-'+Date.now()+'@example.invalid';
       const status=await page.evaluate(async email=>{
         const response=await fetch('/api/email-auth',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -18,14 +18,14 @@ for (const path of ['/','/diary','/baocao']) {
       },email);
       if(status!==201) throw new Error('Mock registration failed: '+status);
     }
-    await page.goto(origin+path,{waitUntil:'networkidle0'});
-    if(path!=='/') await page.waitForSelector('main',{timeout:20000});
+    await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:60000});
+    await page.waitForSelector(path==='/'?'h1':'main',{visible:true,timeout:45000});
     if(new URL(page.url()).pathname!==path) throw new Error('Unexpected audit route '+page.url());
-    await page.close();
     const result=await lighthouse(origin+path,{port:Number(new URL(browser.wsEndpoint()).port),output:['html','json'],
       logLevel:'error',disableStorageReset:true,onlyCategories:['performance','accessibility','best-practices','seo']});
     if(!result || result.lhr.runtimeError || new URL(result.lhr.finalDisplayedUrl || result.lhr.finalUrl).pathname!==path)
       throw new Error('Invalid Lighthouse result for '+path);
+    await page.close();
     const slug=path==='/'?'landing':path.slice(1);
     await fs.writeFile('lighthouse-reports/'+slug+'.html',result.report[0]);
     await fs.writeFile('lighthouse-reports/'+slug+'.json',result.report[1]);
