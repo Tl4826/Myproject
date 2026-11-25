@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { makeEnvelope, sendCode } from '../src/lib/telemetry-envelope.mjs';
+const dsn='https://0123456789abcdef0123456789abcdef@o1.ingest.sentry.io/42';
+const id='1234567890abcdef1234567890abcdef', now='2026-11-25T00:00:00.000Z';
+const p=makeEnvelope(dsn,'diary_unavailable',id,now,'preview');
+assert.equal(p.endpoint,'https://o1.ingest.sentry.io/api/42/envelope/');
+const [header,item,payload]=p.body.trimEnd().split('\n').map(JSON.parse);
+assert.equal(header.event_id,id);
+assert.equal(item.length,new TextEncoder().encode(JSON.stringify(payload)).length);
+assert.equal(payload.message,'diary_unavailable');
+assert.equal(payload.user,undefined);
+assert.equal(payload.request,undefined);
+assert.equal(makeEnvelope(dsn,'private email@example.com',id,now,'preview'),null);
+assert.equal(makeEnvelope(dsn.replace('o1.ingest.sentry.io','example.com'),'diary_unavailable',id,now,'preview'),null);
+assert.equal(await sendCode('', 'diagnostic_test','preview'),false);
+console.log('Telemetry envelope tests passed (no external requests).');
