@@ -1,5 +1,6 @@
 'use client';
 
+import OptionalDiagnostics from '../components/OptionalDiagnostics.jsx';
 import OnboardModal from '../components/OnboardModal.jsx';
 import { AppProvider, useApp } from '../context/AppContext.jsx';
 
@@ -35,6 +36,7 @@ export default function Providers({ children }) {
     return (
         <AppProvider>
             <AppShell>{children}</AppShell>
+            <OptionalDiagnostics />
         </AppProvider>
     );
 }
