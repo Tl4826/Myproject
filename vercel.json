@@ -23,6 +23,14 @@
       "destination": "/api/diary.js"
     },
     {
+      "source": "/api/health",
+      "destination": "/api/index?__nutrivn_route=health"
+    },
+    {
+      "source": "/api/predict",
+      "destination": "/api/index?__nutrivn_route=predict"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
     },
