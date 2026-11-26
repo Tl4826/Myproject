@@ -1,11 +1,24 @@
 'use client';
 
+import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import OptionalDiagnostics from '../components/OptionalDiagnostics.jsx';
 import OnboardModal from '../components/OnboardModal.jsx';
 import { AppProvider, useApp } from '../context/AppContext.jsx';
 
 function AppShell({ children }) {
-    const { toast, isLoggedIn, isOnboardOpen, authChecking } = useApp();
+    const pathname = usePathname();
+    const { toast, isLoggedIn, isOnboardOpen, authChecking, navigate } = useApp();
+
+    // Esc trên /login và /dangki quay về trang giới thiệu ngay cả khi phiên đang xác minh
+    useEffect(() => {
+        if (pathname !== '/login' && pathname !== '/dangki') return;
+        const onKeyDown = e => {
+            if (e.key === 'Escape') navigate('/');
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [pathname, navigate]);
 
     if (authChecking) {
         return (
