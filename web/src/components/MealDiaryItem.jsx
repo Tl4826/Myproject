@@ -10,6 +10,7 @@ const MealDiaryItem = ({ meal, onCategoryChange, onRemove }) => (
                 : <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">🍽️</div>}
             <div className="min-w-0">
                 <div className="font-bold text-xs text-slate-900 truncate">{meal.name}</div>
+                {meal.deviceOnly && <span className="text-xs text-slate-600">Chỉ trên thiết bị này</span>}
                 <div className="text-[10px] text-slate-500">{meal.time} • {Number.isFinite(meal.calories) ? `P:${meal.protein ?? '—'}g C:${meal.carbs ?? '—'}g F:${meal.fat ?? '—'}g` : 'Chưa có dữ liệu dinh dưỡng'}</div>
             </div>
         </div>
