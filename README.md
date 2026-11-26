@@ -9,7 +9,7 @@
 - **Production:** https://nutrivn-main.vercel.app
 - **AI:** 100-class ONNX classifier (30 Vietnamese + 70 Food-101 classes), served by FastAPI, with a 50-class fallback.
 - **Web:** Next.js 14 App Router, React 18, Tailwind CSS; camera/upload, top-3 prediction review, diary, reports, About and Contact.
-- **Backend:** Vercel Node endpoints for email/social authentication and account-scoped diary; Neon PostgreSQL schema in `database/schema.sql`. Email credentials are checked server-side. Social-account diary operations use the server API; email-account diary and some profile/report data still use browser storage.
+- **Backend:** Vercel Node endpoints for email/social authentication and account-scoped diary; Neon PostgreSQL schema in `database/schema.sql`. Email credentials are checked server-side. New diary entries for verified email and social accounts use the server API; legacy email meals and some profile/report data remain device-local.
 - **Limitations:** Nutrition estimates cover only a subset of labels. Production health and route checks are not equivalent to real-image inference, authentication or cross-device diary verification.
 
 ## Run the project locally
@@ -61,8 +61,8 @@ These are test commands, not a claim that they have been executed successfully i
 Browser (Next.js 14 / React)
   | photo upload -> /api/predict -> FastAPI -> ONNX Runtime
   | email/social auth -> Node API -> Neon PostgreSQL
-  | social-account diary -> /api/diary -> account-scoped PostgreSQL
-  | email-account diary and some profile/report data -> browser storage
+  | email/social diary -> /api/diary -> account-scoped PostgreSQL
+  | legacy email diary and some profile/report data -> browser storage
   + nutrition lookup, diary and reports
 ```
 
@@ -86,7 +86,7 @@ Browser (Next.js 14 / React)
 | Email authentication | Node API with password hashing and server-side session; live valid/invalid login regression still needed |
 | Google/Facebook authentication | Server API present; provider configuration and live sign-in must be verified |
 | PostgreSQL | Neon schema and Node API present; production DATABASE_URL configured, actual account/diary persistence requires testing |
-| Diary and reports | Social-account diary API uses user_id; email-account diary and some profile/report state remain browser-local |
+| Diary and reports | New diary entries use account-scoped API for email/social accounts; legacy meals and some profile/report state remain browser-local |
 | About/Contact | Public routes present; form delivery is not claimed without evidence |
 | Responsive | [Report and screenshots](docs/RESPONSIVE_REPORT.md) record 18/18 cases at 375/768/1440px (team test) |
 | Lighthouse | [CI artifacts](https://github.com/Tl4826/Myproject/actions/runs/45643857681) from a local build with mock API; production audit pending |
