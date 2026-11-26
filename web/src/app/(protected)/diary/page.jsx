@@ -30,12 +30,12 @@ export default function DiaryPage() {
                     <h3 className="font-extrabold text-slate-900 text-xs uppercase border-b pb-2">⚡ Tổng Quan Hôm Nay</h3>
                     <div className="grid grid-cols-2 gap-2 text-center">
                         <div className="rounded-2xl bg-slate-50 border border-slate-200 p-2.5">
-                            <div className="text-[10px] font-bold text-slate-500">Đã nạp</div>
-                            <div className="text-lg font-black text-slate-900">{totalCal} <span className="text-[10px] text-slate-500">kcal</span></div>
+                            <div className="text-[10px] font-bold text-slate-500">Đã nạp (kcal)</div>
+                            <div className="text-lg font-black text-slate-900">{totalCal}</div>
                         </div>
                         <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-2.5">
-                            <div className="text-[10px] font-bold text-emerald-700">{totalCal > targetCal ? 'Vượt mức' : 'Còn lại'}</div>
-                            <div className={`text-lg font-black ${calorieStatus.text}`}>{Math.abs(remainingCal)} <span className="text-[10px] text-slate-500">kcal</span></div>
+                            <div className="text-[10px] font-bold text-emerald-700">{totalCal > targetCal ? 'Vượt mức (kcal)' : 'Còn lại (kcal)'}</div>
+                            <div className={`text-lg font-black ${calorieStatus.text}`}>{Math.abs(remainingCal)}</div>
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
