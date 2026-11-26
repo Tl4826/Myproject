@@ -3,6 +3,12 @@ import PublicHeader from '../../components/PublicHeader.jsx';
 import PublicFooter from '../../components/PublicFooter.jsx';
 import ContactForm from '../../components/ContactForm.jsx';
 
+export const metadata = {
+    title: 'Liên hệ',
+    description:
+        'Liên hệ đội ngũ NutriVN để góp ý tính năng, báo lỗi hệ thống hoặc đề xuất món ăn Việt mới qua form trực tuyến, Zalo, Facebook và GitHub.',
+};
+
 const CHANNELS = [
     {
         icon: '💬',
