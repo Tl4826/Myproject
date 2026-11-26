@@ -366,7 +366,7 @@ export const FAQ_ITEMS = [
     {
         id: 4,
         question: "Dữ liệu và ảnh của tôi có được bảo mật không?",
-        answer: "Nhật ký ăn uống, mục tiêu calo và báo cáo tuần được lưu ngay trên trình duyệt của bạn. NutriVN không lưu mật khẩu, ảnh món ăn chỉ dùng để nhận diện món và bạn có thể đăng xuất bất cứ lúc nào."
+        answer: "Nhật ký mới được lưu theo tài khoản trên máy chủ; dữ liệu cũ, mục tiêu và báo cáo đã lưu vẫn nằm trên thiết bị. Mật khẩu được lưu dưới dạng băm, không lưu mật khẩu gốc. Ảnh món ăn dùng để nhận diện, không lưu vào nhật ký."
     },
     {
         id:5,
