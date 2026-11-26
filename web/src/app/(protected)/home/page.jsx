@@ -110,6 +110,7 @@ export default function HomePage() {
                                 ? <p className="text-[10px] text-amber-700 font-semibold">Dinh dưỡng ước tính theo khẩu phần tham khảo, không suy ra lượng ăn thực tế từ ảnh.</p>
                                 : <p className="text-[10px] text-amber-700 font-bold">Chưa có dữ liệu dinh dưỡng cho món này. Bạn vẫn có thể lưu tên món vào nhật ký; món chưa được tính vào tổng kcal.</p>}
                             {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
+                            <p className="text-xs text-slate-600">Khi lưu, tên món và dữ liệu nhật ký được lưu theo tài khoản trên máy chủ; ảnh không được lưu vào nhật ký.</p>
                             {(
                                 <button onClick={async () => {
                                     const added = await addMeal(heroScannedDish);
