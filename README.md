@@ -5,7 +5,7 @@
 ## Submission snapshot (26 November 2026)
 
 - **Repository:** https://github.com/Tl4826/Myproject
-- **This README describes:** `main`, the production deployment branch. GitHub's default branch remains `feature/web-vite` at the time of this update; it has diverged from `main`. Confirm the grading branch with the team and lecturer before submission. Do not overwrite either branch to resolve this.
+- **Submission / production branch:** [`main`](https://github.com/Tl4826/Myproject/tree/main), confirmed by the project owner on 26 November 2026. GitHub's default branch was still `feature/web-vite` at the time of this update; use the explicit `main` link for grading until the repository setting is changed. Preserve the old branch and review its independent commits before any integration.
 - **Production:** https://nutrivn-main.vercel.app
 - **AI:** 100-class ONNX classifier (30 Vietnamese + 70 Food-101 classes), served by FastAPI, with a 50-class fallback.
 - **Web:** Next.js 14 App Router, React 18, Tailwind CSS; camera/upload, top-3 prediction review, diary, reports, About and Contact.
