@@ -1,0 +1,9 @@
+# Documentation and responsive evidence (GitHub/grading only, not needed at runtime)
+docs/
+QA_REPORT_*.md
+
+# Local Playwright QA suites (not needed for Vercel build or serverless functions)
+web/tests-v2/
+web/tests-security/
+web/tests-quality/
+web/playwright*.cjs
