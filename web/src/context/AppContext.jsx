@@ -24,7 +24,9 @@ export function AppProvider({ children }) {
             .map(m => ({ date: dayKey(new Date()), ...m }));
 
     const [meals, setMeals] = useState(() => (uid ? readMeals(uid) : []));
+    // All verified providers use the account-scoped diary API.
     const [socialAccount, setSocialAccount] = useState(null);
+    const deviceMeals = id => readMeals(id).map((meal, i) => ({ ...meal, id: String(meal.id || i).startsWith('device:') ? String(meal.id || i) : 'device:' + String(meal.id || i), deviceOnly: true }));
     const router = useRouter();
     const navigate = useCallback((path, options) => {
         if (options?.replace) router.replace(path);
@@ -275,8 +277,9 @@ export function AppProvider({ children }) {
         if (!uid) return;
 
         try {
-            if (!socialAccount) {
-                localStorage.setItem(ukey('nv_meals', uid), JSON.stringify(meals));
+            // Existing email-account diary stays on this device; never silently upload it.
+            if (socialAccount?.provider === 'email') {
+                localStorage.setItem(ukey('nv_meals', uid), JSON.stringify(meals.filter(m => m.deviceOnly)));
             }
             localStorage.setItem(ukey('nv_target', uid), JSON.stringify(targetCal));
             localStorage.setItem(ukey('nv_weeks', uid), JSON.stringify(savedWeeklyLogs));
@@ -474,6 +477,8 @@ export function AppProvider({ children }) {
                     const name = cached?.provider === 'email' && cached.email === u.email
                         ? cached.name || u.name : u.name;
                     const verified = { ...u, name };
+                    const cloudMeals = await fetchSocialDiary();
+                    if (!active) return;
                     const storage = localStorage.getItem('nv_user') ? localStorage : sessionStorage;
                     try {
                         localStorage.removeItem('nv_user');
@@ -482,7 +487,8 @@ export function AppProvider({ children }) {
                     } catch {}
                     migrateLegacy(nid);
                     switchUser(nid);
-                    setSocialAccount(null);
+                    setMeals([...deviceMeals(nid), ...cloudMeals]);
+                    setSocialAccount(verified);
                     setUserEmail(name || u.email);
                     setIsLoggedIn(true);
                 } else if (['google', 'facebook'].includes(data.user.provider)) {
@@ -519,8 +525,9 @@ export function AppProvider({ children }) {
         } catch (err) { notify(err.message || 'Lỗi đăng nhập'); }
     };
 
-    const login = (u, msg = 'Đăng nhập thành công') => {
+    const login = async (u, msg = 'Đăng nhập thành công') => {
         const nid = idOf(u);
+        const cloudMeals = await fetchSocialDiary();
 
         try {
             // Xóa tài khoản cũ ở cả hai nơi để tránh lấy nhầm tài khoản.
@@ -534,7 +541,8 @@ export function AppProvider({ children }) {
 
         migrateLegacy(nid);
         switchUser(nid);
-        setSocialAccount(null);
+        setMeals([...deviceMeals(nid), ...cloudMeals]);
+        setSocialAccount(u);
 
         setIsLoggedIn(true);
         setUserEmail(u.name || u.email || '');
@@ -609,7 +617,7 @@ export function AppProvider({ children }) {
             const data = await r.json().catch(() => ({}));
             if (!r.ok || !data.user) throw new Error(data.error || 'Đăng nhập không thành công');
             // Only a verified server response can activate the UI session.
-            login(data.user, mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
+            await login(data.user, mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
             setAuthName('');
             setAuthPassword('');
         } catch (err) {
@@ -816,20 +824,23 @@ export function AppProvider({ children }) {
                 const response = await fetch('/api/diary', {
                     method: 'POST', credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newM)
+                    // Send only meal fields, never the local image thumbnail.
+                    body: JSON.stringify({ name: newM.name, date: newM.date, category: newM.category, calories: newM.calories, protein: newM.protein, carbs: newM.carbs, fat: newM.fat })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.meal)
                     throw new Error(data.error || 'Không lưu được món ăn');
-                setMeals(prev => [...prev, data.meal]);
+                setMeals(prev => [...prev, { ...data.meal, deviceOnly: false }]);
             } catch (err) { notify(err.message || 'Lỗi database'); return false; }
-        } else setMeals(prev => [...prev, newM]);
+        } else { notify('Cần xác minh phiên đăng nhập trước khi lưu'); return false; }
         navigate('/diary');
         return true;
     };
 
     const updateMealCategory = async (id, category) => {
-        if (socialAccount) {
+        const meal = meals.find(m => m.id === id);
+        if (!meal || !socialAccount) return;
+        if (!meal.deviceOnly) {
             try {
                 const response = await fetch('/api/diary', {
                     method: 'PATCH', credentials: 'same-origin',
@@ -843,7 +854,9 @@ export function AppProvider({ children }) {
     };
 
     const removeMeal = async id => {
-        if (socialAccount) {
+        const meal = meals.find(m => m.id === id);
+        if (!meal || !socialAccount) return;
+        if (!meal.deviceOnly) {
             try {
                 const response = await fetch('/api/diary?id=' + encodeURIComponent(id), {
                     method: 'DELETE', credentials: 'same-origin'
