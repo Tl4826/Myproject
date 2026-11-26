@@ -32,9 +32,11 @@ export default function HomePage() {
                     onUsePhoto={useCameraPhoto}
                 />
             )}
-            {isLoggedIn && <h2 className="px-1 text-lg font-black text-slate-800">Xin chào, <span className="text-emerald-600">{userEmail.split('@')[0]}</span> 👋</h2>}
-            <GuideAccordion isOpen={isGuideOpen} onToggle={() => setIsGuideOpen(open => !open)} />
-            <section className="bg-gradient-to-b from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-emerald-500">
+            {isLoggedIn && <h2 className="px-1 text-lg sm:text-xl font-black text-slate-800">Xin chào, <span className="text-emerald-600">{userEmail.split('@')[0]}</span> 👋</h2>}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-start">
+                <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-20">
+                    <GuideAccordion isOpen={isGuideOpen} onToggle={() => setIsGuideOpen(open => !open)} />
+                    <section className="bg-gradient-to-b from-emerald-600 to-emerald-700 text-white rounded-3xl p-5 shadow-lg space-y-4 border border-emerald-500">
                 <div className="text-center space-y-1">
                     <span className="bg-white/20 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
                         📸 TÍNH NĂNG CHÍNH
@@ -192,7 +194,9 @@ export default function HomePage() {
                     ))}
                 </div>
             </section>
+                </div>
 
+                <div className="lg:col-span-7 space-y-4">
             {/* Lộ trình hôm nay */}
             <section className="bg-white rounded-3xl p-4 border border-slate-200 space-y-3">
                 <div className="border-b pb-2 flex items-start justify-between gap-2">
@@ -331,6 +335,8 @@ export default function HomePage() {
                     ))}
                 </div>
             </section>
+                </div>
+            </div>
         </div>
     );
 }

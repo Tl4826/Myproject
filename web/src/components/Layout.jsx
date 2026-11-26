@@ -16,7 +16,7 @@ export default function Layout({ children }) {
         <>
             <PageBackground />
             <header className="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-3 shadow-sm">
-                <div className="max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="max-w-2xl lg:max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div className="flex items-center justify-between w-full sm:w-auto">
                         <div className="flex items-center space-x-2">
                             <div className="w-9 h-9 overflow-hidden rounded-xl bg-emerald-600 shadow-sm">
@@ -49,18 +49,18 @@ export default function Layout({ children }) {
             </header>
 
             <section className="bg-slate-900 text-white py-4 px-4 text-center">
-                <div className="max-w-xl mx-auto space-y-1">
+                <div className="max-w-xl lg:max-w-5xl mx-auto space-y-1">
                     <span className="inline-block bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 px-3 py-0.5 rounded-full text-[10px] font-bold">⚡ Nền Tảng Web Dinh Dưỡng</span>
-                    <h2 className="text-lg font-black leading-tight">Chụp Ảnh Món Ăn - Tính Calo Tức Thì</h2>
-                    <p className="text-[11px] text-slate-300">Nhận diện chính xác khẩu phần & dinh dưỡng món ăn Việt</p>
+                    <h2 className="text-lg sm:text-xl font-black leading-tight">Chụp Ảnh Món Ăn - Tính Calo Tức Thì</h2>
+                    <p className="text-[11px] sm:text-xs text-slate-300">Nhận diện chính xác khẩu phần & dinh dưỡng món ăn Việt</p>
                 </div>
             </section>
 
-            <main key={pathname} className="fade max-w-xl mx-auto px-3 pt-4 space-y-4">
+            <main key={pathname} className="fade max-w-xl lg:max-w-5xl mx-auto px-3 sm:px-4 pt-4 lg:pt-6 space-y-4">
                 {children}
             </main>
 
-            <footer className="max-w-xl mx-auto mt-8 px-4 py-4 border-t border-slate-200 text-center space-y-2 text-xs">
+            <footer className="max-w-xl lg:max-w-5xl mx-auto mt-8 lg:mt-10 px-4 py-4 border-t border-slate-200 text-center space-y-2 text-xs">
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-slate-500 font-bold">
                     <Link href="/about" className="hover:text-emerald-600">Giới thiệu</Link>
                     <Link href="/contact" className="hover:text-emerald-600">Liên hệ</Link>
