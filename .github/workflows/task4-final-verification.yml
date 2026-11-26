@@ -1,0 +1,135 @@
+name: Task 4 authenticated production verification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/task4-final-verification.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ORIGIN: https://nutrivn-myproject.vercel.app
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false lighthouse@12 puppeteer@24
+      - name: Test real session, diary API, and authenticated Lighthouse
+        run: |
+          mkdir -p evidence
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          import {randomUUID} from 'node:crypto';
+          import puppeteer from 'puppeteer';
+          import lighthouse from 'lighthouse';
+          const origin=process.env.ORIGIN;
+          const result={origin,checkedAt:new Date().toISOString(),checks:[],scores:[],note:'One synthetic QA account; remove only its test meal and session. No real user data. Account record may remain. Email UI diary is browser-local; API tests do not prove cross-device UI sync.'};
+          const save=()=>fs.writeFile('evidence/summary.json',JSON.stringify(result,null,2));
+          const check=async(name,fn)=>{try{result.checks.push({name,pass:true,...await fn()});}catch(e){result.checks.push({name,pass:false,error:String(e.message).slice(0,180)});}await save();};
+          const email='task4-qa-'+randomUUID()+'@example.invalid',password=randomUUID()+randomUUID();
+          let cookie='',mealId='';
+          async function request(path,method='GET',body,session=cookie){
+            return fetch(origin+path,{method,headers:{Origin:origin,...(session?{Cookie:session}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45000)});
+          }
+          await check('register one synthetic QA account',async()=>{
+            const r=await request('/api/email-auth','POST',{action:'register',email,password,name:'NutriVN QA',remember:false},'');
+            assert.equal(r.status,201);cookie=(r.headers.get('set-cookie')||'').split(';')[0];assert.ok(cookie.startsWith('nutrivn_session='));return {status:r.status};
+          });
+          await check('AUTH-007 reject incorrect password',async()=>{
+            const r=await request('/api/email-auth','POST',{action:'login',email,password:randomUUID(),remember:false},'');assert.equal(r.status,401);assert.equal(r.headers.has('set-cookie'),false);return {status:r.status};
+          });
+          await check('verify server session',async()=>{
+            assert.ok(cookie);const r=await request('/api/social-auth');assert.equal(r.status,200);const b=await r.json();assert.equal(b.user?.provider,'email');assert.equal(b.user?.email,email);return {status:r.status};
+          });
+          await check('diary rejects guest',async()=>{const r=await request('/api/diary','GET',undefined,'');assert.equal(r.status,401);return {status:r.status};});
+          await check('diary create/read/update/delete synthetic row',async()=>{
+            assert.ok(cookie);const initial=await request('/api/diary');assert.equal(initial.status,200);assert.equal((await initial.json()).meals?.length,0);
+            const r=await request('/api/diary','POST',{name:'QA synthetic food',date:new Date().toISOString().slice(0,10),category:'lunch',calories:null,protein:null,carbs:null,fat:null});
+            assert.equal(r.status,201);mealId=(await r.json()).meal?.id;assert.ok(mealId);
+            const list=await request('/api/diary');assert.equal(list.status,200);assert.ok((await list.json()).meals.some(x=>x.id===mealId));
+            const patch=await request('/api/diary','PATCH',{id:mealId,category:'dinner'});assert.equal(patch.status,200);
+            const updated=await request('/api/diary');assert.equal(updated.status,200);assert.equal((await updated.json()).meals.find(x=>x.id===mealId)?.category,'dinner');
+            const del=await request('/api/diary?id='+encodeURIComponent(mealId),'DELETE');assert.equal(del.status,200);const after=await request('/api/diary');assert.equal(after.status,200);assert.equal((await after.json()).meals.some(x=>x.id===mealId),false);mealId='';return {created:true,updated:true,deleted:true};
+          });
+          try {
+            for(const path of ['/diary','/baocao']){
+              await check('authenticated Lighthouse '+path,async()=>{
+                assert.ok(cookie);const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+                try{
+                  await browser.setCookie({name:'nutrivn_session',value:cookie.slice('nutrivn_session='.length),url:origin,secure:true,httpOnly:true,sameSite:'Lax'});
+                  const page=await browser.newPage();
+                  await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:60000});
+                  await page.waitForSelector('main',{visible:true,timeout:45000});
+                  assert.equal(new URL(page.url()).pathname,path);
+                  await page.close();
+                  const audit=await lighthouse(origin+path,{port:Number(new URL(browser.wsEndpoint()).port),output:['html','json'],logLevel:'error',disableStorageReset:true,onlyCategories:['performance','accessibility','best-practices','seo']});
+                  assert.ok(audit&&!audit.lhr.runtimeError);assert.equal(new URL(audit.lhr.finalDisplayedUrl||audit.lhr.finalUrl).pathname,path);
+                  const scores=Object.fromEntries(Object.entries(audit.lhr.categories).map(([k,v])=>[k,Math.round(v.score*100)]));
+                  result.scores.push({route:path,...scores});
+                  // Only publish numeric summaries; authenticated raw reports may contain test session metadata.
+                  return {scores};
+                }finally{await browser.close();}
+              });
+            }
+          } finally {
+            if(mealId&&cookie) await check('cleanup QA meal',async()=>{const r=await request('/api/diary?id='+encodeURIComponent(mealId),'DELETE');assert.equal(r.status,200);return {status:r.status};});
+            if(cookie) await check('logout synthetic session',async()=>{const r=await request('/api/social-auth','DELETE');assert.ok([200,204].includes(r.status));return {status:r.status};});
+          }
+          console.log(JSON.stringify(result,null,2));if(result.checks.some(x=>!x.pass))process.exitCode=1;
+          JS
+      - name: Check landing consent without sending telemetry
+        if: always()
+        run: |
+          mkdir -p evidence
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs/promises';
+          import puppeteer from 'puppeteer';
+          const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          const summary={origin:process.env.ORIGIN,checks:[],note:'All Google Analytics and Sentry requests intercepted; no third-party events sent by this test.'};
+          try{
+            const page=await browser.newPage();
+            let gaLoads=0,sentryEvents=0,sanitized=false;
+            await page.setRequestInterception(true);
+            page.on('request',r=>{
+              const url=new URL(r.url());
+              if(url.hostname.endsWith('googletagmanager.com')||url.hostname.endsWith('google-analytics.com')||url.hostname.endsWith('analytics.google.com')){
+                gaLoads++;return void r.respond({status:200,contentType:'application/javascript',body:''}).catch(()=>{});
+              }
+              if(url.hostname.endsWith('sentry.io')){
+                if(r.method()==='POST'){
+                  sentryEvents++;
+                  try{const event=JSON.parse(r.postData().trim().split('\n')[2]);sanitized=event.message==='browser_runtime'&&Object.keys(event).every(k=>['event_id','timestamp','platform','level','logger','message','fingerprint','environment'].includes(k));}catch{}
+                }
+                return void r.respond({status:200,headers:{'access-control-allow-origin':'*'},body:''}).catch(()=>{});
+              }
+              void r.continue().catch(()=>{});
+            });
+            await page.goto(process.env.ORIGIN+'/',{waitUntil:'domcontentloaded',timeout:60000});
+            await page.waitForSelector('aside[aria-label="Tùy chọn đo lường"] button',{timeout:30000});
+            const buttons=await page.$$('aside[aria-label="Tùy chọn đo lường"] button');
+            await page.evaluate(()=>window.dispatchEvent(new Event('error')));
+            await new Promise(r=>setTimeout(r,700));
+            assert.equal(gaLoads,0);assert.equal(sentryEvents,0);summary.checks.push({name:'default off',pass:true});
+            await buttons[0].click();
+            await page.waitForFunction(()=>Array.isArray(window.dataLayer)&&window.dataLayer.some(a=>a[0]==='event'&&a[1]==='page_view'),{timeout:10000});
+            await page.evaluate(()=>window.dispatchEvent(new Event('error')));
+            await new Promise(r=>setTimeout(r,1200));
+            assert.ok(gaLoads>0);assert.ok(sentryEvents>0);assert.ok(sanitized);summary.checks.push({name:'opt-in GA page_view and sanitized browser event',pass:true});
+            await buttons[1].click();
+            await page.waitForFunction(()=>Object.keys(window).some(k=>k.startsWith('ga-disable-G-')&&window[k]===true),{timeout:10000});
+            const old=sentryEvents;await page.evaluate(()=>window.dispatchEvent(new Event('unhandledrejection')));await new Promise(r=>setTimeout(r,800));
+            assert.equal(sentryEvents,old);summary.checks.push({name:'decline disables GA and browser events',pass:true});
+          }catch(e){summary.checks.push({name:'consent verification',pass:false,error:String(e.message).slice(0,200)});process.exitCode=1;}
+          finally{await browser.close();await fs.writeFile('evidence/consent.json',JSON.stringify(summary,null,2));console.log(JSON.stringify(summary,null,2));}
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nutrivn-task4-final-verification
+          path: evidence/
+          if-no-files-found: error
