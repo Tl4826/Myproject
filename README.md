@@ -2,14 +2,15 @@
 
 > VNUK course project: image-based food recognition, a nutrition-estimate interface, a daily meal diary, and an experimental AI model service.
 
-## Submission snapshot (13 November 2026)
+## Submission snapshot (26 November 2026)
 
 - **Repository:** https://github.com/Tl4826/Myproject
-- **Default / grading branch:** `feature/web-vite` (not `main` or `master`). GitHub's default-branch clone checks out this branch.
-- **AI:** a **100-class ONNX food classifier** (30 Vietnamese classes + 70 Food-101 classes), integrated via FastAPI, with a 50-class rollback option.
-- **Web:** React + Vite, camera capture and image upload, top-3 prediction review, diary, reports and onboarding UI.
-- **Important distinction:** The API is an interface *to our trained model*, not a paid third-party food-recognition API.
-- **Current limitations:** Many of the 100 labels do not yet have nutrition estimates; web login is a browser-only prototype rather than verified server authentication; diary/profile persistence is browser-local (not MySQL in this branch). See below.
+- **This README describes:** `main`, the production deployment branch. GitHub's default branch remains `feature/web-vite` at the time of this update; it has diverged from `main`. Confirm the grading branch with the team and lecturer before submission. Do not overwrite either branch to resolve this.
+- **Production:** https://nutrivn-main.vercel.app
+- **AI:** 100-class ONNX classifier (30 Vietnamese + 70 Food-101 classes), served by FastAPI, with a 50-class fallback.
+- **Web:** Next.js 14 App Router, React 18, Tailwind CSS; camera/upload, top-3 prediction review, diary, reports, About and Contact.
+- **Backend:** Vercel Node endpoints for email/social authentication and account-scoped diary; Neon PostgreSQL schema in `database/schema.sql`. Email credentials are checked server-side. Social-account diary operations use the server API; email-account diary and some profile/report data still use browser storage.
+- **Limitations:** Nutrition estimates cover only a subset of labels. Production health and route checks are not equivalent to real-image inference, authentication or cross-device diary verification.
 
 ## Run the project locally
 
@@ -29,20 +30,18 @@ Open http://127.0.0.1:8000/health for the list of model classes, or http://127.0
 
 On first startup the API can reconstruct the 100-class model from checksum-verified shards under `ml/models_food100/parts/`. The original 50-class model remains in `ml/models/`. To use that fallback, set `FOOD_MODEL_VARIANT=50` **before** starting the API.
 
-### 2. React frontend
-
-Open another terminal:
+### 2. Next.js frontend
 
 ```bash
 cd web
 npm ci
-# Copy .env.example to .env.development.local and set VITE_API_URL=http://localhost:8000
+# Copy .env.example to .env.development.local and set NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev
 ```
 
-Open the URL reported by Vite (normally http://localhost:5173). Camera access works on localhost or secure HTTPS pages, subject to browser permission. The app will call the local FastAPI service if `VITE_API_URL` points to it.
+Open the URL printed by Next.js (normally http://localhost:3000). Start the real FastAPI service separately for AI inference. The optional `npm run dev:local` uses a local mock API for development and synthetic UI testing; it does not verify real credentials or production PostgreSQL.
 
-**Demo login caveat:** The current browser-only sign-in form does not authenticate credentials against a backend and must not be presented as a secure account system. Data stored in localStorage/sessionStorage is per browser/device. Do not enter a real password into the demo.
+For a full backend deployment, configure the team-owned Neon database and authentication settings in Vercel, apply the schema through the team's database process, and keep secrets out of Git. Do not use real personal data for grading tests.
 
 ### 3. Tests / grading checks
 
@@ -59,46 +58,41 @@ These are test commands, not a claim that they have been executed successfully i
 ## Project architecture
 
 ```text
-Browser (React / Vite)
-    |  image upload or camera photo
-    v
-FastAPI /predict (ml/service/app.py)
-    |  ONNX Runtime inference
-    v
-100-class food model -> predicted label + top-3 + confidence
-    |
-    v
-Frontend nutrition lookup (web/src/lib/data.js; limited estimates)
-    |
-    v
-Browser-local diary and report
+Browser (Next.js 14 / React)
+  | photo upload -> /api/predict -> FastAPI -> ONNX Runtime
+  | email/social auth -> Node API -> Neon PostgreSQL
+  | social-account diary -> /api/diary -> account-scoped PostgreSQL
+  | email-account diary and some profile/report data -> browser storage
+  + nutrition lookup, diary and reports
 ```
 
-- `web/` — React/Vite source, camera, diary, reports, onboarding UI.
-- `api/index.py` — Vercel entry point wrapping the same FastAPI service.
-- `ml/service/` — image preprocessing, ONNX inference, API route, and API tests.
-- `ml/models_food100/` — ONNX model shards, labels, checksum and rebuild instructions.
-- `ml/models/` — retained 50-class model fallback.
-- `ml/notebooks/`, `ml/train_food_100.py` — model training code and notebooks.
-- `docs/VERCEL.md` — Vercel configuration and deployment checks.
+- `web/` — Next.js App Router frontend.
+- `api/index.py`, `ml/service/` — Vercel FastAPI entry point and inference.
+- `api/email-auth.js`, `api/social-auth.js`, `api/diary.js`, `database/` — Node endpoints, auth and PostgreSQL schema.
+- `ml/models_food100/`, `ml/models/` — Food100 model shards and Food50 fallback.
+- `docs/` — verification reports and grading evidence.
 
 ## Deployment
 
-The repo includes `vercel.json` to build `web/` and deploy the Python API under `/api/*`, including `GET /api/health` and `POST /api/predict`. The browser build uses `VITE_API_URL=/api` in `web/.env.production`. **A GitHub push alone does not prove deployment works**; check the actual hosted `/api/health`, a real image scan, and Vercel function logs. Resource limits/cold starts can affect ONNX inference. Full deployment details: [docs/VERCEL.md](docs/VERCEL.md).
+`vercel.json` builds the Next.js static export into `web/out` and routes the Python and Node APIs. The browser uses `NEXT_PUBLIC_API_URL=/api`. `.vercelignore` excludes documentation and local QA files from the deployment bundle without removing them from GitHub. Configure environment variables in Vercel, never in public commits.
 
 ## What is and is not integrated yet
 
-| Component | Current state on `feature/web-vite` |
+| Component | State on main |
 |---|---|
-| 100-dish ONNX model | Files checked in as verified shards; service code selects Food100 by default |
-| Image recognition API | FastAPI `/predict` exists; end-to-end production success still needs testing |
-| Camera and photo upload | Present in frontend |
-| Nutrition and protein estimates | Local lookup; currently available for only a subset of labels, **not** all 100 |
-| Login / registration | Browser-only prototype; no server credential verification |
-| Meal diary / reports | Browser localStorage; not synchronized between devices |
-| Node/MySQL backend | Team implementation exists on separate `feature/tuananh-backend` branch; **not merged into this grading branch** |
+| Food100 ONNX model | Model files and FastAPI inference integrated; production health returned HTTP 200 with 100 classes on 26 November 2026 |
+| Camera and photo upload | UI and prediction endpoint present; real-photo production regression still needed |
+| Nutrition estimates | Local lookup for a subset of labels, not all 100 |
+| Email authentication | Node API with password hashing and server-side session; live valid/invalid login regression still needed |
+| Google/Facebook authentication | Server API present; provider configuration and live sign-in must be verified |
+| PostgreSQL | Neon schema and Node API present; production DATABASE_URL configured, actual account/diary persistence requires testing |
+| Diary and reports | Social-account diary API uses user_id; email-account diary and some profile/report state remain browser-local |
+| About/Contact | Public routes present; form delivery is not claimed without evidence |
+| Responsive | [Report and screenshots](docs/RESPONSIVE_REPORT.md) record 18/18 cases at 375/768/1440px (team test) |
+| Lighthouse | [CI artifacts](https://github.com/Tl4826/Myproject/actions/runs/45643857681) from a local build with mock API; production audit pending |
+| GA4 / Sentry | Optional code integrated; team-owned IDs, consent review, dashboard evidence and production verification pending ([Issue #32](https://github.com/Tl4826/Myproject/issues/32)) |
 
-Do not state that the active branch has secure authentication, a connected MySQL database, or complete nutrition data for 100 dishes until those features are integrated and tested. The Node backend should be reviewed and integrated in a separate PR, not copied over the working Vercel/FastAPI setup without validation.
+Production GET checks on 26 November returned HTTP 200 and route-specific titles for `/`, `/about`, `/contact`, `/home`, `/diary`, `/baocao`. These checks do not prove authenticated behavior. See [Task 4 verification guidance](docs/TASK4_OBSERVABILITY.md) and [Issue #42](https://github.com/Tl4826/Myproject/issues/42) for review follow-up.
 
 ## AI training and evaluation
 
@@ -114,7 +108,7 @@ Do not state that the active branch has secure authentication, a connected MySQL
 |---|---|
 | Thanh | Food classification model, model service, inference/deployment |
 | Huy | Frontend, UI/UX and nutrition lookup |
-| Tuấn Anh | Node backend and database work (separate branch) |
+| Tuấn Anh | Node backend and database work |
 | Hồng | Reporting, wireframes, planning, issues, self-reports |
 
 ## Caveats and academic integrity
