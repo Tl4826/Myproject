@@ -3,6 +3,12 @@ import PublicHeader from '../../components/PublicHeader.jsx';
 import PublicFooter from '../../components/PublicFooter.jsx';
 import TeamGrid from '../../components/TeamGrid.jsx';
 
+export const metadata = {
+    title: 'Giới thiệu',
+    description:
+        'Tìm hiểu về NutriVN — nền tảng web theo dõi dinh dưỡng món ăn Việt bằng AI nhận diện 100 món ăn và đội ngũ phát triển Nhóm 1.',
+};
+
 const HIGHLIGHTS = [
     {
         icon: '📸',

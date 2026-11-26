@@ -3,8 +3,19 @@ import './globals.css';
 import Providers from './providers.jsx';
 
 export const metadata = {
-    title: 'NutriVN - Nền Tảng Dinh Dưỡng AI Việt Nam',
-    description: 'Ứng dụng theo dõi dinh dưỡng bằng ảnh món ăn AI Việt Nam',
+    title: {
+        default: 'NutriVN - Nền Tảng Dinh Dưỡng AI Việt Nam',
+        template: '%s | NutriVN',
+    },
+    description:
+        'Ứng dụng theo dõi dinh dưỡng bằng ảnh món ăn AI Việt Nam: nhận diện 100 món ăn, tính calo, protein, carbs, fat, lộ trình BMI và báo cáo 7 ngày.',
+    keywords: ['NutriVN', 'dinh dưỡng AI', 'tính calo món ăn Việt', 'nhật ký ăn uống', 'BMI', 'TDEE'],
+    openGraph: {
+        title: 'NutriVN - Nền Tảng Dinh Dưỡng AI Việt Nam',
+        description: 'Chụp ảnh món ăn Việt, nhận diện bằng AI và theo dõi calo, macro mỗi ngày.',
+        locale: 'vi_VN',
+        type: 'website',
+    },
 };
 
 export default function RootLayout({ children }) {
