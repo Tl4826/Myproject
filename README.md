@@ -86,7 +86,7 @@ Browser (Next.js 14 / React)
 | Email authentication | Node API with password hashing and server-side session; registration, session validation and wrong/unregistered credentials tested on production ([AUTH evidence](https://github.com/Tl4826/Myproject/actions/runs/45799243828), [unregistered login](https://github.com/Tl4826/Myproject/actions/runs/45798437764)) |
 | Google/Facebook authentication | Server API present; provider configuration and live sign-in must be verified |
 | PostgreSQL | Neon PostgreSQL [schema and ERD](docs/database-schema.md); production authenticated diary CRUD passed in workflow 45799243828 |
-| Diary and reports | New diary entries use account-scoped API for email/social accounts; [two-browser mock regression](https://github.com/Tl4826/Myproject/actions/runs/45816701285) passed. Legacy meals and saved profile/report state remain device-local |
+| Diary and reports | New diary entries use account-scoped API for email/social accounts; [two-browser mock regression](https://github.com/Tl4826/Myproject/actions/runs/45816701285) and [production sync, edit/delete and report regression](https://github.com/Tl4826/Myproject/actions/runs/45823545267) passed. Legacy meals and saved profile/report state remain device-local |
 | About/Contact | Public routes present; form delivery is not claimed without evidence |
 | Responsive | [Report and screenshots](docs/RESPONSIVE_REPORT.md) record 18/18 cases at 375/768/1440px (team test) |
 | Lighthouse | [CI artifacts after fixes](https://github.com/Tl4826/Myproject/actions/runs/45816700702) and [production evidence](docs/evidence/TASK4_RESULTS.md) for landing, diary and reports |
