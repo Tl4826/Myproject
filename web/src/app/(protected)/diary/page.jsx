@@ -60,6 +60,7 @@ export default function DiaryPage() {
                     <h3 className="font-extrabold text-slate-900 text-xs uppercase">📖 Nhật Ký Bữa Ăn Hôm Nay</h3>
                     <span className="text-[10px] text-emerald-600 font-bold">{todayMeals.length} món đã lưu</span>
                 </div>
+                <p className="text-xs text-slate-600">Món mới lưu theo tài khoản trên máy chủ; ảnh không được lưu vào nhật ký. Món cũ trên thiết bị này không tự động đồng bộ.</p>
                 <div className="space-y-2">
                     {todayMeals.length === 0 && (
                         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
