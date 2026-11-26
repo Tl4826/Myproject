@@ -5,12 +5,12 @@
 ## Submission snapshot (26 November 2026)
 
 - **Repository:** https://github.com/Tl4826/Myproject
-- **Submission / production branch:** [`main`](https://github.com/Tl4826/Myproject/tree/main), confirmed by the project owner on 26 November 2026. GitHub's default branch was still `feature/web-vite` at the time of this update; use the explicit `main` link for grading until the repository setting is changed. Preserve the old branch and review its independent commits before any integration.
-- **Production:** https://nutrivn-main.vercel.app
+- **Submission / production branch:** [`main`](https://github.com/Tl4826/Myproject/tree/main), confirmed by the project owner on 26 November 2026. GitHub's default branch is now `main`, verified through the repository API. The old `feature/web-vite` branch is preserved.
+- **Production:** https://nutrivn-myproject.vercel.app (GA4/Sentry configured); https://nutrivn-main.vercel.app (second deployment). Both deploy `main`.
 - **AI:** 100-class ONNX classifier (30 Vietnamese + 70 Food-101 classes), served by FastAPI, with a 50-class fallback.
 - **Web:** Next.js 14 App Router, React 18, Tailwind CSS; camera/upload, top-3 prediction review, diary, reports, About and Contact.
 - **Backend:** Vercel Node endpoints for email/social authentication and account-scoped diary; Neon PostgreSQL schema in `database/schema.sql`. Email credentials are checked server-side. New diary entries for verified email and social accounts use the server API; legacy email meals and some profile/report data remain device-local.
-- **Limitations:** Nutrition estimates cover only a subset of labels. Production health and route checks are not equivalent to real-image inference, authentication or cross-device diary verification.
+- **Limitations:** Nutrition estimates cover only a subset of labels. See the evidence links below for separately verified real-photo, authentication, diary and telemetry behavior.
 
 ## Run the project locally
 
@@ -81,18 +81,18 @@ Browser (Next.js 14 / React)
 | Component | State on main |
 |---|---|
 | Food100 ONNX model | Model files and FastAPI inference integrated; production health returned HTTP 200 with 100 classes on 26 November 2026 |
-| Camera and photo upload | UI and prediction endpoint present; real-photo production regression still needed |
+| Camera and photo upload | Production pizza upload, Top 1 pizza, selection and diary rendering passed ([real-photo test](https://github.com/Tl4826/Myproject/actions/runs/45799739417)); one photo is not an accuracy evaluation |
 | Nutrition estimates | Local lookup for a subset of labels, not all 100 |
-| Email authentication | Node API with password hashing and server-side session; live valid/invalid login regression still needed |
+| Email authentication | Node API with password hashing and server-side session; registration, session validation and wrong/unregistered credentials tested on production ([AUTH evidence](https://github.com/Tl4826/Myproject/actions/runs/45799243828), [unregistered login](https://github.com/Tl4826/Myproject/actions/runs/45798437764)) |
 | Google/Facebook authentication | Server API present; provider configuration and live sign-in must be verified |
-| PostgreSQL | Neon schema and Node API present; production DATABASE_URL configured, actual account/diary persistence requires testing |
-| Diary and reports | New diary entries use account-scoped API for email/social accounts; legacy meals and some profile/report state remain browser-local |
+| PostgreSQL | Neon PostgreSQL [schema and ERD](docs/database-schema.md); production authenticated diary CRUD passed in workflow 45799243828 |
+| Diary and reports | New diary entries use account-scoped API for email/social accounts; [two-browser mock regression](https://github.com/Tl4826/Myproject/actions/runs/45816701285) passed. Legacy meals and saved profile/report state remain device-local |
 | About/Contact | Public routes present; form delivery is not claimed without evidence |
 | Responsive | [Report and screenshots](docs/RESPONSIVE_REPORT.md) record 18/18 cases at 375/768/1440px (team test) |
-| Lighthouse | [CI artifacts](https://github.com/Tl4826/Myproject/actions/runs/45643857681) from a local build with mock API; production audit pending |
-| GA4 / Sentry | Optional code integrated; team-owned IDs, consent review, dashboard evidence and production verification pending ([Issue #32](https://github.com/Tl4826/Myproject/issues/32)) |
+| Lighthouse | [CI artifacts after fixes](https://github.com/Tl4826/Myproject/actions/runs/45816700702) and [production evidence](docs/evidence/TASK4_RESULTS.md) for landing, diary and reports |
+| GA4 / Sentry | Configured on nutrivn-myproject; consent regression, GA4/Sentry dashboard screenshots and server diagnostic ingestion evidence retained in [Task 4 results](docs/evidence/TASK4_RESULTS.md) |
 
-Production GET checks on 26 November returned HTTP 200 and route-specific titles for `/`, `/about`, `/contact`, `/home`, `/diary`, `/baocao`. These checks do not prove authenticated behavior. See [Task 4 verification guidance](docs/TASK4_OBSERVABILITY.md) and [Issue #42](https://github.com/Tl4826/Myproject/issues/42) for review follow-up.
+Production GET checks on 26 November returned HTTP 200 and route-specific titles for `/`, `/about`, `/contact`, `/home`, `/diary`, `/baocao`. Both production deployments at 4b46f73 also returned healthy Food100 status. Authenticated tests are recorded separately. See [Task 4 verification guidance](docs/TASK4_OBSERVABILITY.md) and [Issue #42](https://github.com/Tl4826/Myproject/issues/42) for review follow-up.
 
 ## AI training and evaluation
 
@@ -108,7 +108,7 @@ Production GET checks on 26 November returned HTTP 200 and route-specific titles
 |---|---|
 | Thanh | Food classification model, model service, inference/deployment |
 | Huy | Frontend, UI/UX and nutrition lookup |
-| Tuấn Anh | Node backend and database work |
+| Tuấn Anh | Node backend and database work; authentication, ERD and PostgreSQL schema (PR #18, #46); later integration and QA in PR #54 |
 | Hồng | Reporting, wireframes, planning, issues, self-reports |
 
 ## Caveats and academic integrity
