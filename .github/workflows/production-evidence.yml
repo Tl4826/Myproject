@@ -1,0 +1,98 @@
+name: Production smoke and public Lighthouse
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-evidence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ORIGIN: https://nutrivn-main.vercel.app
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare synthetic image and check public production APIs
+        run: |
+          mkdir -p evidence
+          python3 - <<'PY'
+          import struct, zlib
+          def chunk(t, b):
+              return struct.pack('>I', len(b)) + t + b + struct.pack('>I', zlib.crc32(t+b)&0xffffffff)
+          w=h=224
+          pixels=b''.join(b'\x00'+bytes([180,110,50])*w for _ in range(h))
+          with open('/tmp/synthetic.png','wb') as f:
+              f.write(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(pixels))+chunk(b'IEND',b''))
+          PY
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          import { randomUUID } from 'node:crypto';
+          const origin=process.env.ORIGIN;
+          const report={origin,checkedAt:new Date().toISOString(),checks:[]};
+          async function check(name,fn){
+            try {report.checks.push({name,pass:true,...await fn()});}
+            catch(e){report.checks.push({name,pass:false,error:String(e.message).slice(0,250)});}
+            await fs.writeFile('evidence/smoke.json',JSON.stringify(report,null,2));
+          }
+          await check('health',async()=>{
+            const r=await fetch(origin+'/api/health',{signal:AbortSignal.timeout(90000)});
+            const b=await r.json(); assert.equal(r.status,200);assert.equal(b.ok,true);assert.equal(b.class_count,100);
+            return {status:r.status,classCount:b.class_count};
+          });
+          await check('multipart inference on synthetic PNG (not accuracy)',async()=>{
+            const f=new FormData();f.append('file',new Blob([await fs.readFile('/tmp/synthetic.png')],{type:'image/png'}),'synthetic.png');
+            const r=await fetch(origin+'/api/predict',{method:'POST',body:f,signal:AbortSignal.timeout(90000)});
+            assert.equal(r.status,200);const b=await r.json();assert.equal(b.top3?.length,3);
+            assert.ok(b.top3.every(x=>typeof x.mon==='string'&&Number.isFinite(x.do_tin_cay)));
+            return {status:r.status,top3Count:b.top3.length};
+          });
+          await check('AUTH-008 reject unregistered synthetic email',async()=>{
+            const r=await fetch(origin+'/api/email-auth',{method:'POST',headers:{'Content-Type':'application/json','Origin':origin},body:JSON.stringify({action:'login',email:'qa-'+randomUUID()+'@example.invalid',password:randomUUID(),remember:false}),signal:AbortSignal.timeout(45000)});
+            assert.equal(r.status,401);assert.equal(r.headers.has('set-cookie'),false);
+            return {status:r.status,sessionIssued:false};
+          });
+          for(const path of ['/','/about','/contact','/home','/diary','/baocao']){
+            await check('public GET '+path+' (not authenticated behavior)',async()=>{
+              const r=await fetch(origin+path,{signal:AbortSignal.timeout(45000)});assert.equal(r.status,200);
+              const html=await r.text();assert.ok(/<title>[^<]+<\/title>/i.test(html));
+              return {status:r.status};
+            });
+          }
+          console.log(JSON.stringify(report,null,2));
+          if(report.checks.some(x=>!x.pass)) process.exitCode=1;
+          JS
+      - name: Install isolated Lighthouse tools
+        if: always()
+        run: npm install --no-save --package-lock=false lighthouse@12 puppeteer@24
+      - name: Audit public production landing (no login or analytics consent)
+        if: always()
+        run: |
+          mkdir -p evidence
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import lighthouse from 'lighthouse';
+          import puppeteer from 'puppeteer';
+          const origin=process.env.ORIGIN;
+          const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+            const result=await lighthouse(origin+'/',{port:Number(new URL(browser.wsEndpoint()).port),output:['html','json'],logLevel:'error',onlyCategories:['performance','accessibility','best-practices','seo']});
+            if(!result||result.lhr.runtimeError||new URL(result.lhr.finalDisplayedUrl||result.lhr.finalUrl).origin!==origin||new URL(result.lhr.finalDisplayedUrl||result.lhr.finalUrl).pathname!=='/') throw Error('Invalid public landing audit');
+            await fs.writeFile('evidence/landing.html',result.report[0]);
+            await fs.writeFile('evidence/landing.json',result.report[1]);
+            const summary={url:origin+'/',checkedAt:new Date().toISOString(),scores:Object.fromEntries(Object.entries(result.lhr.categories).map(([k,v])=>[k,Math.round(v.score*100)])),limitations:'Public landing only; authenticated diary/reports and GA4/Sentry dashboards not verified.'};
+            await fs.writeFile('evidence/lighthouse-summary.json',JSON.stringify(summary,null,2));console.log(JSON.stringify(summary,null,2));
+          }finally{await browser.close();}
+          JS
+      - name: Upload actual production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutrivn-production-evidence
+          path: evidence/
+          if-no-files-found: error
