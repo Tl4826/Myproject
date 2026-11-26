@@ -9,8 +9,8 @@ export default function ReportsPage() {
     } = useApp();
 
     return (
-        <div className="space-y-4">
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-start">
+            <div className="lg:col-span-7 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                     <div>
                         <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">📊 Biểu Đồ Xu Hướng Calo 7 Ngày</h3>
@@ -132,7 +132,7 @@ export default function ReportsPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
+            <div className="lg:col-span-5 lg:sticky lg:top-20 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
                 <div className="border-b border-slate-100 pb-2">
                     <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wide">📂 Lịch Sử Báo Cáo Đã Lưu Trên Thiết Bị</h3>
                     <p className="text-[10px] text-slate-500 font-bold">Danh sách báo cáo 7 ngày được lưu trên thiết bị này</p>

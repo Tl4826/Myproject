@@ -28,10 +28,10 @@ input:focus, select:focus { outline: none; border-color: #10b981; box-shadow: 0 
 .glow-3 { width: 80vmin; height: 80vmin; bottom: -22vmin; right: 0; background: radial-gradient(closest-side, rgba(190, 242, 100, .28), rgba(190, 242, 100, 0)); animation-delay: -14s; }
 @keyframes drift { to { transform: translate(6vmin, -5vmin) scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .glow { animation: none; } }
-/* Thẻ trắng trong mờ nhẹ: chỉ áp cho thẻ trắng nằm trực tiếp trong khung nội dung của 3 trang
+/* Thẻ trắng trong mờ nhẹ: chỉ áp cho thẻ trắng lớn (rounded-3xl) trong khung nội dung của 3 trang
    (thẻ xanh lá đầu trang, khung camera, nút... không bị ảnh hưởng) */
-main > div > .rounded-3xl.bg-white,
-main > div > .rounded-3xl.from-emerald-50 {
+main .rounded-3xl.bg-white,
+main .rounded-3xl.from-emerald-50 {
   background-image: none;
   background-color: rgba(255, 255, 255, .78);
   border-color: rgba(255, 255, 255, .9);
