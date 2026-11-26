@@ -61,7 +61,9 @@ export default function Layout({ children }) {
             </main>
 
             <footer className="max-w-xl mx-auto mt-8 px-4 py-4 border-t border-slate-200 text-center space-y-2 text-xs">
-                <div className="flex justify-center space-x-4 text-slate-500 font-bold">
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-slate-500 font-bold">
+                    <Link href="/about" className="hover:text-emerald-600">Giới thiệu</Link>
+                    <Link href="/contact" className="hover:text-emerald-600">Liên hệ</Link>
                     <a href="https://www.facebook.com/huy.vo.59895?locale=vi_VN" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Facebook</a>
                     <a href="https://zalo.me/0905467532" target="_blank" rel="noreferrer" className="hover:text-emerald-600">Zalo</a>
                     <a href="https://github.com/Huysadboy2610" target="_blank" rel="noreferrer" className="hover:text-emerald-600">GitHub</a>
