@@ -39,3 +39,22 @@ main .rounded-3xl.from-emerald-50 {
   -webkit-backdrop-filter: blur(10px);
           backdrop-filter: blur(10px);
 }
+
+/* Task 4: Lighthouse reported insufficient contrast and 10–11px text
+   in the authenticated header, diary, reports and footer. Keep layout intact. */
+header.bg-white .text-emerald-600,
+main.fade .text-emerald-600 { color: #047857; }
+header.bg-white button.bg-emerald-600,
+main.fade .bg-emerald-600.text-white { background-color: #047857; }
+header.bg-white button.bg-emerald-600:hover,
+main.fade button.bg-emerald-600.text-white:hover { background-color: #065f46; }
+main.fade .text-slate-400,
+footer .text-slate-400 { color: #475569; }
+header.bg-white .text-\\[10px\\],
+header.bg-white .text-\\[11px\\],
+header.bg-white + section .text-\\[10px\\],
+header.bg-white + section .text-\\[11px\\],
+main.fade .text-\\[10px\\],
+main.fade .text-\\[11px\\],
+footer .text-\\[10px\\],
+footer .text-\\[11px\\] { font-size: 12px; line-height: 1.25rem; }
