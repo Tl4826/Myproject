@@ -5,6 +5,7 @@
   "functions": {
     "api/index.py": {
       "includeFiles": "ml/**",
+      "excludeFiles": "ml/models/**",
       "memory": 1024,
       "maxDuration": 60
     }
