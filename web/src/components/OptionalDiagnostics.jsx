@@ -6,6 +6,7 @@ import { sendCode } from '../lib/telemetry-envelope.mjs';
 const GA = process.env.NEXT_PUBLIC_GA_ID || '';
 const DSN = process.env.NEXT_PUBLIC_SENTRY_DSN || '';
 const validGA = /^G-[A-Z0-9]+$/.test(GA);
+const publicRoutes = new Set(['/','/about','/contact']);
 const choiceKey = 'nv_optional_diagnostics';
 let initialized = false;
 let lastView = null;
@@ -19,7 +20,7 @@ export default function OptionalDiagnostics() {
     try { setChoice(localStorage.getItem(choiceKey)); } catch {}
     setReady(true);
   }, []);
-  const allowed = ready && choice === 'yes' && pathname === '/';
+  const allowed = ready && choice === 'yes' && publicRoutes.has(pathname);
   useEffect(() => {
     if (!validGA) return;
     window['ga-disable-'+GA] = !allowed;
@@ -43,34 +44,35 @@ export default function OptionalDiagnostics() {
       initialized = true;
     }
     window.gtag('consent','update',{analytics_storage:'granted'});
-    if (lastView !== '/') {
-      window.gtag('event','page_view',{page_location:location.origin+'/',page_referrer:'',page_title:'NutriVN'});
-      lastView = '/';
+    if (lastView !== pathname) {
+      window.gtag('event','page_view',{page_location:location.origin+pathname,page_referrer:'',page_title:'NutriVN'});
+      lastView = pathname;
     }
     return () => { window['ga-disable-'+GA] = true; };
-  }, [allowed]);
+  }, [allowed, pathname]);
   useEffect(() => {
-    // Opt-in, landing only. Never attach ErrorEvent, rejection, stack, URL or personal data.
+    // Opt-in, public pages only. Never attach ErrorEvent, rejection, stack, URL or personal data.
     if (!allowed || !DSN) return;
     const emit = code => {
-      if (seen.has(code)) return;
-      seen.add(code);
-      void sendCode(DSN, code, 'production');
+      const key = pathname + ':' + code;
+      if (seen.has(key)) return;
+      seen.add(key);
+      void sendCode(DSN, code, 'production', {route: pathname});
     };
     const error = () => emit('browser_runtime');
     const rejection = () => emit('browser_promise');
     window.addEventListener('error',error);
     window.addEventListener('unhandledrejection',rejection);
     return () => { window.removeEventListener('error',error); window.removeEventListener('unhandledrejection',rejection); };
-  },[allowed]);
-  if (!ready || pathname !== '/' || (!validGA && !DSN)) return null;
+  },[allowed, pathname]);
+  if (!ready || !publicRoutes.has(pathname) || (!validGA && !DSN)) return null;
   function save(value) {
     if (validGA && value !== 'yes') window['ga-disable-'+GA] = true;
     try { localStorage.setItem(choiceKey,value); } catch {}
     setChoice(value);
   }
   return <aside aria-label="Tùy chọn đo lường" className="mx-auto max-w-2xl px-4 py-3 text-sm text-slate-600">
-    <p>Đo lường tùy chọn trên trang giới thiệu: lượt xem và mã lỗi kỹ thuật, không gửi ảnh, hồ sơ hoặc nhật ký.</p>
+    <p>Đo lường tùy chọn trên các trang công khai (trang chủ, giới thiệu, liên hệ): lượt xem và mã lỗi kỹ thuật, không gửi ảnh, hồ sơ hoặc nhật ký.</p>
     <div className="flex flex-wrap gap-3 mt-2">
       <button type="button" aria-pressed={choice==='yes'} onClick={()=>save('yes')} className="underline">Cho phép</button>
       <button type="button" aria-pressed={choice==='no'} onClick={()=>save('no')} className="underline">Từ chối / tắt</button>
