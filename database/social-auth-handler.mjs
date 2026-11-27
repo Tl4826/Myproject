@@ -92,6 +92,7 @@ export async function getAuthenticatedUser(req, sql) {
     return rows[0] || null;
 }
 export default async function handler(req, res) {
+    const startedAt = Date.now();
     res.setHeader('Cache-Control', 'no-store');
     if (!isReady()) return json(res, 503, { error: 'Chưa cấu hình database và OAuth trên Vercel' });
     if (!['POST', 'GET', 'DELETE'].includes(req.method)) {
@@ -157,7 +158,7 @@ export default async function handler(req, res) {
     } catch (err) {
         // Never log credentials, access tokens, emails, app secret or DATABASE_URL.
         const isAuthFailure = /Google|Facebook|token|claims|signature|mismatch|key/i.test(err.message || '');
-        if (!isAuthFailure) await reportServiceError('social_auth_unavailable');
+        if (!isAuthFailure) await reportServiceError('social_auth_unavailable', Date.now() - startedAt);
         return json(res, isAuthFailure ? 401 : 503,
             { error: isAuthFailure ? 'Không xác minh được tài khoản' : 'Dịch vụ đăng nhập chưa sẵn sàng' });
     }
