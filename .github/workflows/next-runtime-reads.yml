@@ -1,0 +1,43 @@
+name: Next runtime reads
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web/src/app/api/**'
+      - 'web/src/context/AppContext.jsx'
+      - 'web/next.config.mjs'
+      - 'web/scripts/test-runtime-read.mjs'
+      - '.github/workflows/next-runtime-reads.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Verify existing production static export
+        run: NEXT_STATIC_EXPORT=1 npm run build
+      - name: Build optional runtime
+        run: rm -rf .next out && NUTRIVN_RUNTIME_READS=1 LOCAL_API_PROXY=http://127.0.0.1:3001 npm run build
+      - name: Start isolated mock and Next server
+        run: |
+          node scripts/dev-mock-api.mjs > /tmp/nv-mock.log 2>&1 &
+          NUTRIVN_RUNTIME_READS=1 LOCAL_API_PROXY=http://127.0.0.1:3001 npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/nv-next.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/ > /dev/null && curl -fsS http://127.0.0.1:3001/api/health > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/nv-mock.log /tmp/nv-next.log
+          exit 1
+      - run: node scripts/test-runtime-read.mjs

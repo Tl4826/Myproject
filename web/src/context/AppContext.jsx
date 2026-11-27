@@ -423,7 +423,8 @@ export function AppProvider({ children }) {
 
     // Tài khoản chỉ được chấp nhận sau khi backend xác minh Google/Facebook.
     const fetchSocialDiary = async () => {
-        const res = await fetch('/api/diary', { credentials: 'same-origin' });
+        const readPath = process.env.NEXT_PUBLIC_NUTRIVN_RUNTIME_READS === '1' ? '/api/next-diary' : '/api/diary';
+        const res = await fetch(readPath, { credentials: 'same-origin', cache: 'no-store' });
         if (!res.ok) throw new Error('Không thể tải nhật ký của tài khoản');
         const data = await res.json();
         return Array.isArray(data.meals) ? data.meals : [];
