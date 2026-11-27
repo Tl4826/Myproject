@@ -15,9 +15,9 @@ const TeamMembersModal = ({ onClose }) => (
                         <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 text-xs font-black text-emerald-700">
                             {member.name.split(' ').map(part => part[0]).slice(-2).join('')}
                             <img
-                                src={member.image}
+                                src={member.image.startsWith('/') ? member.image : `/${member.image}`}
                                 alt={member.name}
-                                className="absolute inset-0 h-full w-full object-cover"
+                                className={`absolute inset-0 h-full w-full object-cover ${member.imagePosition || 'object-center'}`}
                                 onError={e => { e.currentTarget.style.display = 'none'; }}
                             />
                         </div>

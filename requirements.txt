@@ -1,6 +1,6 @@
-fastapi
-uvicorn
-python-multipart
-onnxruntime
-pillow
-numpy
+fastapi==0.165.0
+uvicorn==0.54.0
+python-multipart==0.0.34
+onnxruntime==1.32.0
+pillow==13.0.0
+numpy==2.4.6

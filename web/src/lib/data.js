@@ -296,28 +296,32 @@ export const TEAM_MEMBERS = [
         name: 'Lê Hoàng Thanh',
         title: 'Chủ Tịch',
         role: 'Chairman & Founder',
-        image: 'images/thanh_le.jpg',
+        image: '/images/thanh_le.jpg',
+        imagePosition: 'object-[50%_40%]',
         bio: 'Định hướng chiến lược phát triển hệ sinh thái NutriVN Health Platform.'
     },
     {
         name: 'Võ Quốc Huy',
         title: 'Phó Chủ Tịch',
         role: 'Vice Chairman & Co-Founder',
-        image: 'images/huy_vo.jpg',
+        image: '/images/huy_vo.jpg',
+        imagePosition: 'object-[50%_32%]',
         bio: 'Phụ trách điều hành tổng thể, phát triển giải pháp AI Vision.'
     },
     {
         name: 'Mai Tuấn Anh',
         title: 'Giám Đốc',
         role: 'Executive Director',
-        image: 'images/tuan_anh.jpg',
+        image: '/images/tuan_anh.jpg',
+        imagePosition: 'object-[50%_38%]',
         bio: 'Quản lý chất lượng trải nghiệm người dùng trên nền tảng Web.'
     },
     {
         name: 'Trần Văn Hồng',
         title: 'Giám Đốc',
         role: 'Technical Director',
-        image: 'images/van_hong.png',
+        image: '/images/van_hong.jpg',
+        imagePosition: 'object-top',
         bio: 'Chịu trách nhiệm kiến trúc mô hình Deep Learning nhận diện thực phẩm.'
     }
 ];
