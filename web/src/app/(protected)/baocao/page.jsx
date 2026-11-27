@@ -93,7 +93,7 @@ export default function ReportsPage() {
                                 {weeklyHistory.map((d, i) => (
                                     <span
                                         key={i}
-                                        className={`text-[10px] font-extrabold ${i === 6 ? 'text-emerald-700' : 'text-slate-500'}`}
+                                        className={`text-[10px] font-extrabold ${d.day === 'Hôm nay' ? 'text-emerald-700' : 'text-slate-500'}`}
                                     >
                                         {d.day}
                                     </span>

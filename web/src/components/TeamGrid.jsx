@@ -15,7 +15,7 @@ export default function TeamGrid() {
                         <img
                             src={member.image.startsWith('/') ? member.image : `/${member.image}`}
                             alt={member.name}
-                            className="absolute inset-0 h-full w-full object-cover"
+                            className={`absolute inset-0 h-full w-full object-cover ${member.imagePosition || 'object-center'}`}
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                         />
                     </div>
