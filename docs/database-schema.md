@@ -81,3 +81,8 @@ Every child row references exactly one user. All three foreign keys use ON DELET
 The verified public schema contains four tables, 25 columns and 16 named primary-key, foreign-key, unique and check constraints. There are no separate Food, BMI, Reports or AI Predictions tables in this schema. The ERD represents stored database entities, not every application feature.
 
 This document includes schema metadata only: no real user rows, passwords, session tokens, connection strings or other secrets. No database migration or application code change is required for this documentation.
+
+
+## 4. Account metadata extension — verified 28/11/2026
+
+The additive migration [002_account_metadata.sql](../database/migrations/002_account_metadata.sql) was applied on Neon after PostgreSQL CI passed. Live catalog now contains seven tables: the original four and `user_profiles`, `user_plans`, `user_saved_reports`. The new tables have RLS enabled and 14 PK/FK/UNIQUE/CHECK constraints in total. See the [updated ERD and scope](ACCOUNT_SCHEMA_PROPOSAL.md). These are metadata tables only; existing local profiles, plan details and reports have not been uploaded. No real user rows were read during verification.
