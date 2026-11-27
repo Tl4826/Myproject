@@ -19,6 +19,7 @@ const shown = row => ({
 });
 
 export default async function handler(req, res) {
+    const startedAt = Date.now();
   res.setHeader('Cache-Control','no-store');
   if (!process.env.DATABASE_URL) return send(res,503,{error:'Database not configured'});
   if (!['GET','POST','PATCH','DELETE'].includes(req.method)) {
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
       WHERE id = ${id} AND user_id = ${user.id} RETURNING id`;
     return send(res,rows.length?200:404,{ok:!!rows.length});
   } catch (_) {
-    await reportServiceError('diary_unavailable');
+    await reportServiceError('diary_unavailable', Date.now() - startedAt);
     return send(res,503,{error:'Nhật ký tạm thời không kết nối được database'});
   }
 }
