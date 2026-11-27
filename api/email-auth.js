@@ -48,6 +48,7 @@ async function setSession(sql, req, res, user, remember) {
     '; Path=/; HttpOnly; SameSite=Lax' + secure + duration);
 }
 export default async function handler(req, res) {
+    const startedAt = Date.now();
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return response(res, 405, { error: 'Method not allowed' });
@@ -103,7 +104,7 @@ export default async function handler(req, res) {
   } catch (error) {
     if (error.code === '23505')
       return response(res, 409, { error: 'Email này đã được đăng ký' });
-    await reportServiceError('email_auth_unavailable');
+    await reportServiceError('email_auth_unavailable', Date.now() - startedAt);
     // No credentials, token, SQL or database connection secrets in error responses.
     return response(res, 503, { error: 'Dịch vụ đăng nhập chưa sẵn sàng' });
   }
