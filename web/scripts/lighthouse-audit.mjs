@@ -4,7 +4,7 @@ import puppeteer from 'puppeteer';
 const origin='http://127.0.0.1:3000';
 const results=[];
 await fs.mkdir('lighthouse-reports',{recursive:true});
-for (const path of ['/','/diary','/baocao']) {
+for (const path of ['/','/home','/diary','/baocao']) {
   const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   try {
     const page=await browser.newPage();
