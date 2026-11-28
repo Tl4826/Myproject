@@ -70,7 +70,7 @@ Browser (Next.js 14 / React)
 - `api/index.py`, `ml/service/` — Vercel FastAPI entry point and inference.
 - `api/email-auth.js`, `api/social-auth.js`, `api/diary.js`, `database/` — Node endpoints, auth and PostgreSQL schema.
 - `ml/models_food100/`, `ml/models/` — Food100 model shards and Food50 fallback.
-- `docs/` — verification reports and grading evidence, including [retrospective wireframes and route comparison](docs/WIREFRAMES.md).
+- `docs/` — [project plan and milestones](docs/PROJECT_PLAN.md), verification reports and grading evidence, including [retrospective wireframes and route comparison](docs/WIREFRAMES.md).
 
 ## Deployment
 
