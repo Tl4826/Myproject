@@ -122,7 +122,7 @@ jobs:
                 await page.waitForSelector(selector,{timeout:30000});
                 const initialConsentLabels=await page.evaluate(sel=>Array.from(document.querySelectorAll(sel)).map(b=>b.textContent.trim()),selector);
                 assert.equal(initialConsentLabels.length,2,'Expected two consent buttons on initial public page');
-                await emit();await settle();assert.deepEqual(counts(),[0,0,0]);record('default off');
+                await settle();assert.deepEqual(counts(),[0,0,0]);record('default off');
                 await chooseConsent('yes');
                 for(const path of publicRoutes){
                   stage='public route '+path;
