@@ -77,3 +77,7 @@ jobs:
             console.log('PASS: same-account cloud diary appears across isolated browser sessions; legacy remains local; cloud deletion propagates on reload.');
           }finally{await browser.close();}
           JS
+      - name: Verify REL-004 frontend double-click regression (stateful mock API)
+        run: |
+          npx playwright install --with-deps chromium
+          NUTRIVN_WEB=http://127.0.0.1:3000 npx playwright test tests-quality/rel004-duplicate-save.spec.cjs --config=playwright.quality.config.cjs --reporter=list

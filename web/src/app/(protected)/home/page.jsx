@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { GOAL_LABEL, FAQ_ITEMS, FOOD_CLASSES, NUTRITION } from '../../../lib/data.js';
 import CountUp from '../../../components/CountUp.jsx';
 import GuideAccordion from '../../../components/GuideAccordion.jsx';
@@ -14,10 +14,12 @@ export default function HomePage() {
         setIsGuideOpen, profile, plan, planTw, setPlanTw, planWk, setPlanWk, planErr, setPlanErr,
         editPlan, setEditPlan, water, setWater, workoutDone, setWorkoutDone, rp, pbmi,
         todayWorkout, dishes, daysIn, totalDays, planPct, expectedW, openProfile, savePlan,
-        handleFile, scanImage, addMeal, scanCandidates, scanCorrections, scanCorrectionSaved,
+        handleFile, scanImage, addMeal, isSavingMeal, scanCandidates, scanCorrections, scanCorrectionSaved,
         chooseScannedDish, saveScanCorrection, exportScanCorrections, clearScanCorrections,
     } = useApp();
     const [cameraOpen, setCameraOpen] = useState(false);
+    const savedScanRef = useRef(null);
+    const savingSuggestionRef = useRef(false);
 
     const useCameraPhoto = file => {
         setCameraOpen(false);
@@ -112,14 +114,21 @@ export default function HomePage() {
                             {!heroScannedDish.sure && !heroScannedDish.manuallySelected && <p className="text-[10px] font-bold text-amber-600">⚠️ Độ tin cậy thấp; hãy chụp lại hoặc chọn món đúng.</p>}
                             <p className="text-xs text-slate-600">Khi lưu, tên món và dữ liệu nhật ký được lưu theo tài khoản trên máy chủ; ảnh không được lưu vào nhật ký.</p>
                             {(
-                                <button onClick={async () => {
-                                    const added = await addMeal(heroScannedDish);
-                                    if (added) {
-                                        setHeroScanState('idle');
-                                        notify('Đã thêm vào nhật ký');
-                                    }
-                                }}
-                                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm">
+                                <button
+                                    type="button"
+                                    disabled={isSavingMeal}
+                                    onClick={async () => {
+                                        if (isSavingMeal || savedScanRef.current === heroScannedDish) return;
+                                        savedScanRef.current = heroScannedDish;
+                                        const added = await addMeal(heroScannedDish);
+                                        if (added) {
+                                            setHeroScanState('idle');
+                                            notify('Đã thêm vào nhật ký');
+                                        } else {
+                                            savedScanRef.current = null;
+                                        }
+                                    }}
+                                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl shadow-sm">
                                     {heroScannedDish.hasNutrition ? 'LƯU ƯỚC TÍNH VÀO NHẬT KÝ' : 'LƯU TÊN MÓN VÀO NHẬT KÝ'}
                                 </button>
                             )}
@@ -295,14 +304,20 @@ export default function HomePage() {
                                     <div className="text-[10px] font-bold text-slate-500">{d.calories} kcal · P{d.protein} C{d.carbs} F{d.fat}</div>
                                 </div>
                                 <button
+                                    type="button"
+                                    disabled={isSavingMeal}
                                     onClick={async () => {
+                                        if (isSavingMeal || savingSuggestionRef.current) return;
+                                        savingSuggestionRef.current = true;
                                         const added = await addMeal(d);
 
                                         if (added) {
                                             notify('Đã thêm vào nhật ký');
+                                        } else {
+                                            savingSuggestionRef.current = false;
                                         }
                                     }}
-                                    className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-2.5 py-1.5 shrink-0"
+                                    className="text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg px-2.5 py-1.5 shrink-0"
                                 >
                                     + Thêm
                                 </button>
