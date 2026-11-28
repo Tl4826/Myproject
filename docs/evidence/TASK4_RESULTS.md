@@ -58,3 +58,20 @@ PR #53 corrected text contrast and font sizes. PR #54 integrated email accounts 
 - Vercel production nutrivn-myproject was READY at main commit 420c539 (deployment dpl_3gpn8XWdzRrhrMwjiKNrKNxbrSXB); a 30-minute error/fatal runtime-log query returned no groups. This does not prove all requests succeeded.
 - The production regression workflow now includes authenticated /home mobile and desktop audits with origin, route and form-factor checks and numeric-only evidence. No raw private reports are uploaded. Production scores must be taken from a successful actual run, not inferred from the local CI scores.
 - Sentry dashboard: individual preview diagnostic_test event 7a5b550868944640983d44de92c9aaf6 and new route/service/duration context still require independent dashboard verification; GA4 new public route coverage and private-route exclusion evidence remain pending (#66). Keep #32 open until required evidence is verified.
+
+## Production acceptance recheck and Sentry dashboard — 28 November 2026
+
+[PR #76](https://github.com/Tl4826/Myproject/pull/76) merged after the production regression workflow and both Vercel checks passed. [Workflow 46116160281](https://github.com/Tl4826/Myproject/actions/runs/46116160281), [numeric JSON evidence](https://github.com/Tl4826/Myproject/actions/runs/46116160281/artifacts/15251229313), measured nutrivn-myproject.vercel.app at 06:20 UTC (13:20 ICT).
+
+| Authenticated production route | Device | Performance | Accessibility | Best Practices | SEO |
+|---|---|---:|---:|---:|---:|
+| /home | Mobile | 90 | 100 | 96 | 100 |
+| /home | Desktop | 100 | 100 | 100 | 100 |
+| /diary | Mobile | 87 | 100 | 100 | 100 |
+| /baocao | Mobile | 100 | 100 | 96 | 100 |
+
+All 19 logged verification checks passed: health (100 classes), two authenticated sessions, server diary synchronization, weekly report, nine responsive checks, edit/delete persistence, and four Lighthouse audits. Numeric summaries only; no raw authenticated reports. Synthetic QA account may remain; its test meal was deleted and the workflow completed session cleanup.
+
+User-provided Sentry screenshot dated 28 November 2026 shows [MYPROJECT-2 / diagnostic_test](https://nutrivn.sentry.io/issues/7868692522/?environment=preview&project=4512497296474112), environment preview, one event, zero users, event ID prefix 7a5b5508, matching the earlier diagnostic receipt. This establishes dashboard reception of the earlier synthetic server diagnostic; it does not establish all privacy settings or the newer #66 context fields. Preserve the cropped screenshot alongside the submission evidence (not uploaded to this repository in this commit).
+
+Original production scan measurement and earlier diagnostic receipt gaps are now addressed. Keep #32 open pending the additional #66 public-route GA4/private-route exclusion and new diagnostic-context dashboard verification; team wireframe review remains tracked separately in #62.
