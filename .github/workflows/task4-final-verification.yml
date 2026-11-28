@@ -109,26 +109,21 @@ jobs:
                 const counts=()=>[gaRequests,sentryRequests,events.length];
                 const publicRoutes=['/','/about','/contact'];
                 const selector='aside[aria-label="Tùy chọn đo lường"] button';
-                const chooseConsent=async(choice,handles=null)=>{
+                const chooseConsent=async(choice)=>{
                   stage='click consent '+choice;
-                  const buttons=handles||await page.$(selector);
-                  assert.equal(buttons.length,2,'Expected exactly two consent controls');
-                  const labels=await Promise.all(buttons.map(b=>b.evaluate(el=>el.textContent.trim())));
+                  const labels=await page.evaluate(sel=>Array.from(document.querySelectorAll(sel)).map(b=>b.textContent.trim()),selector);
+                  assert.equal(labels.length,2,'Expected exactly two consent controls');
                   assert.match(labels[0],/Cho phép/);assert.match(labels[1],/Từ chối/);
-                  try{
-                    // Use the already-mounted control; do not wait for a second query after the synthetic event.
-                    await buttons[choice==='yes'?0:1].click();
-                  }finally{if(!handles)await Promise.all(buttons.map(b=>b.dispose()));}
+                  await page.evaluate((sel,index)=>document.querySelectorAll(sel)[index].click(),selector,choice==='yes'?0:1);
                   stage='verify persisted consent '+choice;
                   await page.waitForFunction(c=>localStorage.getItem('nv_optional_diagnostics')===c,{timeout:15000},choice);
                 };
                 await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:60000});
                 await page.waitForSelector(selector,{timeout:30000});
-                const initialConsentButtons=await page.$(selector);
-                assert.equal(initialConsentButtons.length,2,'Expected two consent buttons on initial public page');
+                const initialConsentLabels=await page.evaluate(sel=>Array.from(document.querySelectorAll(sel)).map(b=>b.textContent.trim()),selector);
+                assert.equal(initialConsentLabels.length,2,'Expected two consent buttons on initial public page');
                 await emit();await settle();assert.deepEqual(counts(),[0,0,0]);record('default off');
-                await chooseConsent('yes',initialConsentButtons);
-                await Promise.all(initialConsentButtons.map(b=>b.dispose()));
+                await chooseConsent('yes');
                 for(const path of publicRoutes){
                   stage='public route '+path;
                   if(path!=='/')await page.goto(origin+path+'?qa=synthetic-privacy-marker',{waitUntil:'domcontentloaded',timeout:60000});
