@@ -108,10 +108,15 @@ jobs:
                 const counts=()=>[gaRequests,sentryRequests,events.length];
                 const publicRoutes=['/','/about','/contact'];
                 const selector='aside[aria-label="Tùy chọn đo lường"] button';
+                const chooseConsent=async(label)=>{
+                  const handle=await page.waitForFunction((sel,text)=>Array.from(document.querySelectorAll(sel)).find(b=>b.textContent.trim()===text&&!b.disabled)||false,{timeout:30000},selector,label);
+                  const button=handle.asElement();assert.ok(button,'Expected consent button: '+label);
+                  try{await button.click();}finally{await handle.dispose();}
+                };
                 await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:60000});
                 await page.waitForSelector(selector,{timeout:30000});
                 await emit();await settle();assert.deepEqual(counts(),[0,0,0]);record('default off');
-                await page.click(selector+':first-of-type');
+                await chooseConsent('Cho phép');
                 for(const path of publicRoutes){
                   if(path!=='/')await page.goto(origin+path+'?qa=synthetic-privacy-marker',{waitUntil:'domcontentloaded',timeout:60000});
                   assert.equal(new URL(page.url()).pathname,path);
@@ -140,7 +145,7 @@ jobs:
                 await page.goto(origin+'/contact',{waitUntil:'domcontentloaded',timeout:60000});
                 await page.waitForSelector(selector,{timeout:30000});
                 await page.waitForFunction(()=>window.dataLayer?.some(a=>a[0]==='event'&&a[1]==='page_view'),{timeout:15000});
-                await page.click(selector+':last-of-type');
+                await chooseConsent('Từ chối / tắt');
                 await page.waitForFunction(()=>Object.keys(window).some(k=>k.startsWith('ga-disable-G-')&&window[k]===true),{timeout:15000});
                 await settle();const before=counts();
                 await page.evaluate(()=>window.dispatchEvent(new Event('unhandledrejection')));await settle();
