@@ -13,9 +13,28 @@ A Next.js/Tailwind course prototype recognizing food photos with the ONNX model,
 | Next.js conversion and optimization | 25 Nov: [e0fe039](https://github.com/Tl4826/Myproject/commit/e0fe039), [PR 33](https://github.com/Tl4826/Myproject/pull/33), [PR 34](https://github.com/Tl4826/Myproject/pull/34) | Next.js, telemetry, AI routes |
 | Responsive UI, DB, review | 26 Nov: [765a346](https://github.com/Tl4826/Myproject/commit/765a346), [1292bc8](https://github.com/Tl4826/Myproject/commit/1292bc8), [PR 44](https://github.com/Tl4826/Myproject/pull/44), [PR 54](https://github.com/Tl4826/Myproject/pull/54) | Responsive evidence, ERD, peer feedback fixes, diary sync |
 | Final integration | 27 Nov: [PR 60](https://github.com/Tl4826/Myproject/pull/60), [5aa63d4](https://github.com/Tl4826/Myproject/commit/5aa63d4) | Assessed snapshot |
-| Final grading improvements | 28 Nov onward: [issue 62](https://github.com/Tl4826/Myproject/issues/62), [issue 64](https://github.com/Tl4826/Myproject/issues/64) | Missing rubric evidence and fixes |
+| Final grading improvements | 28 Nov onward: [issue 62](https://github.com/Tl4826/Myproject/issues/62), [issue 64](https://github.com/Tl4826/Myproject/issues/64), [issue 77](https://github.com/Tl4826/Myproject/issues/77) | Missing rubric evidence, milestone due dates, and fixes |
 
-## Proposed remaining deadlines (team must confirm official submission date)
+## GitHub Milestones & Due Dates (synchronized 28 Nov 2026)
+
+To resolve the trial grading note (*"Milestone chưa đặt hạn"*), all five semester milestones are configured on GitHub (`Issues → Milestones`) with explicit due dates matching the verified repository history and final submission deadline (**29 November 2026**):
+
+| GitHub Milestone Title | Period (UTC+7) | Due Date | Core Deliverables & Clean Evidence | Status |
+| :--- | :---: | :---: | :--- | :---: |
+| **Khởi tạo & Nguyên mẫu đầu tiên** | 22 Oct – 06 Nov 2026 | `2026-11-06` | Repo skeleton, Vietnamese dish training notebook, initial FastAPI service (`ml/service/`), prototype UI (`PR #2`, `PR #3`) | Closed |
+| **Tích hợp AI Food50/Food100, Camera & Vite/React** | 07 Nov – 16 Nov 2026 | `2026-11-16` | Vite + React + Tailwind migration, BMI/calorie plan & 7-day reports, Food50 ONNX & Food100 training, in-app camera (`PR #8`, `#10`, `#12`, `#13`) | Closed |
+| **Backend xác thực, Neon PostgreSQL & Kiểm thử Playwright** | 17 Nov – 24 Nov 2026 | `2026-11-24` | Neon PostgreSQL schema (`database/schema.sql`), HttpOnly cookie auth, account-isolated diary CRUD, Playwright v2 & security QA (`PR #18`, `#20`, `#22`, `#29`) | Closed |
+| **Chuyển sang Next.js, Responsive, Observability & Đồng bộ Nhật ký** | 25 Nov – 26 Nov 2026 | `2026-11-26` | Next.js 14 App Router migration, `/about` & `/contact`, responsive 375/768/1440px, GA4/Sentry opt-in, Lighthouse CI, ERD, Issue `#38` fixes & cloud diary sync (`PR #33`, `#34`, `#44`, `#54`; Issues `#32`, `#35`–`#38`) | Closed |
+| **Khắc phục góp ý đánh giá & Chốt bản nộp cuối kỳ** | 27 Nov – 29 Nov 2026 | `2026-11-29` | Wireframes (`PR #63`), project plan & milestone due dates (`PR #65`, Issue `#77`), diagnostic context (`PR #67`), extended DB schema (`PR #69`), Next.js runtime reads (`PR #71`), `/home` Lighthouse (`PR #73`), final verification | Open |
+
+## Team responsibilities
+
+- **Lê Hoàng Thanh:** AI models (`Food50`/`Food100` ONNX), FastAPI inference, Vercel deployment, observability & verification workflows.
+- **Võ Quốc Huy:** Frontend UI/UX (Vite → Next.js App Router), responsive layout, nutrition lookup, project plan/milestone synchronization & Next.js server-side data integration.
+- **Mai Tuấn Anh:** Backend Node APIs, Neon PostgreSQL schema & ERD, authentication and account-scoped storage.
+- **Trần Văn Hồng:** Wireframes, Playwright v2 / security QA suites, test reports, issue tracking & peer feedback.
+
+## Remaining targets before final submission (29 Nov 2026)
 
 | Target (Vietnam time) | Proposed owner | Acceptance criteria |
 |---|---|---|
