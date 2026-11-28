@@ -42,42 +42,19 @@ CREATE TABLE IF NOT EXISTS user_diary_entries (
 CREATE INDEX IF NOT EXISTS idx_diary_user_date
     ON user_diary_entries (user_id, eaten_on DESC);
 CREATE TABLE IF NOT EXISTS user_profiles (
-    user_id UUID PRIMARY KEY
-        REFERENCES social_users(id)
-        ON DELETE CASCADE,
-
-    email TEXT,
-    name TEXT NOT NULL,
-    age INTEGER,
-    gender TEXT,
-    height NUMERIC(6,2),
-    weight NUMERIC(6,2),
-    bmi NUMERIC(5,2),
-    activity NUMERIC(4,2),
-    goal TEXT,
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    user_id UUID PRIMARY KEY REFERENCES social_users(id) ON DELETE CASCADE,
+    display_name TEXT NOT NULL DEFAULT '' CHECK (char_length(display_name) <= 120),
+    locale TEXT NOT NULL DEFAULT 'vi-VN' CHECK (char_length(locale) <= 20),
+    timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh' CHECK (char_length(timezone) <= 80),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS nutrition_plans (
+CREATE TABLE IF NOT EXISTS user_plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-
-    user_id UUID NOT NULL
-        REFERENCES social_users(id)
-        ON DELETE CASCADE,
-
-    target_weight NUMERIC(6,2) NOT NULL,
-    start_weight NUMERIC(6,2) NOT NULL,
-
-    weeks INTEGER NOT NULL,
-    start_date DATE NOT NULL,
-
+    user_id UUID NOT NULL REFERENCES social_users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL CHECK (char_length(trim(title)) BETWEEN 1 AND 120),
+    start_on DATE NOT NULL,
+    end_on DATE NOT NULL CHECK (end_on >= start_on),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE INDEX IF NOT EXISTS idx_profile_user
-ON user_profiles(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_plan_user
-ON nutrition_plans(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_plans_owner ON user_plans(user_id, start_on DESC);

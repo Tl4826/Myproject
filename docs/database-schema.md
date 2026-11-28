@@ -107,16 +107,15 @@ Stores the user's profile. Relationship: 1 : 0..1 with social_users.
 | created_at | TIMESTAMPTZ | No | now() |
 | updated_at | TIMESTAMPTZ | No | now() |
 
-### nutrition_plans
+### user_plans
 
-Stores nutrition plans. Relationship: 1 : 0..N with social_users.
+Stores user plans. Relationship: 1 : 0..N with social_users. Defined in migration 002.
 
 | Column | PostgreSQL type | Nullable | Default / key |
 |---|---|---|---|
 | id | UUID | No | PK, gen_random_uuid() |
 | user_id | UUID | No | FK → social_users.id (ON DELETE CASCADE) |
-| target_weight | NUMERIC(6,2) | No | — |
-| start_weight | NUMERIC(6,2) | No | — |
-| weeks | INTEGER | No | — |
-| start_date | DATE | No | — |
+| title | TEXT | No | 1 to 120 characters |
+| start_on | DATE | No | — |
+| end_on | DATE | No | CHECK end_on >= start_on |
 | created_at | TIMESTAMPTZ | No | now() |
