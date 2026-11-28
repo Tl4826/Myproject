@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, FOOD_CLASSES, load, dayKey,
@@ -34,6 +34,8 @@ export function AppProvider({ children }) {
     }, [router]);
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
+    const [isSavingMeal, setIsSavingMeal] = useState(false);
+    const savingMealRef = useRef(false);
     const [scanErr, setScanErr] = useState('');
     const [scanCandidates, setScanCandidates] = useState([]);
     const [scanOriginalPrediction, setScanOriginalPrediction] = useState(null);
@@ -802,40 +804,48 @@ export function AppProvider({ children }) {
     };
 
     const addMeal = async (dish) => {
+        if (savingMealRef.current) return false;
         if (typeof dish?.name !== 'string' || !dish.name.trim()) {
             notify('Chưa có món ăn hợp lệ để lưu');
             return false;
         }
-        // Món chưa có bảng dinh dưỡng vẫn được ghi nhật ký, không tự tạo kcal.
-        const hasNutrition = Number.isFinite(dish.calories);
-        const newM = {
-            id: Date.now().toString(),
-            date: dayKey(new Date()),
-            name: dish.name,
-            category: mealByHour(),
-            calories: hasNutrition ? dish.calories : null,
-            protein: hasNutrition ? dish.protein : null,
-            carbs: hasNutrition ? dish.carbs : null,
-            fat: hasNutrition ? dish.fat : null,
-            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-            thumb: dish.thumb || null
-        };
-        if (socialAccount) {
-            try {
-                const response = await fetch('/api/diary', {
-                    method: 'POST', credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    // Send only meal fields, never the local image thumbnail.
-                    body: JSON.stringify({ name: newM.name, date: newM.date, category: newM.category, calories: newM.calories, protein: newM.protein, carbs: newM.carbs, fat: newM.fat })
-                });
-                const data = await response.json();
-                if (!response.ok || !data.meal)
-                    throw new Error(data.error || 'Không lưu được món ăn');
-                setMeals(prev => [...prev, { ...data.meal, deviceOnly: false }]);
-            } catch (err) { notify(err.message || 'Lỗi database'); return false; }
-        } else { notify('Cần xác minh phiên đăng nhập trước khi lưu'); return false; }
-        navigate('/diary');
-        return true;
+        savingMealRef.current = true;
+        setIsSavingMeal(true);
+        try {
+            // Món chưa có bảng dinh dưỡng vẫn được ghi nhật ký, không tự tạo kcal.
+            const hasNutrition = Number.isFinite(dish.calories);
+            const newM = {
+                id: Date.now().toString(),
+                date: dayKey(new Date()),
+                name: dish.name,
+                category: mealByHour(),
+                calories: hasNutrition ? dish.calories : null,
+                protein: hasNutrition ? dish.protein : null,
+                carbs: hasNutrition ? dish.carbs : null,
+                fat: hasNutrition ? dish.fat : null,
+                time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+                thumb: dish.thumb || null
+            };
+            if (socialAccount) {
+                try {
+                    const response = await fetch('/api/diary', {
+                        method: 'POST', credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        // Send only meal fields, never the local image thumbnail.
+                        body: JSON.stringify({ name: newM.name, date: newM.date, category: newM.category, calories: newM.calories, protein: newM.protein, carbs: newM.carbs, fat: newM.fat })
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.meal)
+                        throw new Error(data.error || 'Không lưu được món ăn');
+                    setMeals(prev => [...prev, { ...data.meal, deviceOnly: false }]);
+                } catch (err) { notify(err.message || 'Lỗi database'); return false; }
+            } else { notify('Cần xác minh phiên đăng nhập trước khi lưu'); return false; }
+            navigate('/diary');
+            return true;
+        } finally {
+            savingMealRef.current = false;
+            setIsSavingMeal(false);
+        }
     };
 
     const updateMealCategory = async (id, category) => {
@@ -881,7 +891,7 @@ export function AppProvider({ children }) {
         water, setWater, workoutDone, setWorkoutDone, obErr, weeklyHistory, loggedDays, weekAvg,
         chartMax, savedWeeklyLogs, isWeeklySaved, rp, pbmi, todayWorkout, dishes, daysIn,
         totalDays, planPct, expectedW, handleSaveWeekToDevice, login, logout, handleAuthSubmit,
-        fbLogin, socialLogin, openProfile, saveProfile, savePlan, handleFile, scanImage, addMeal, updateMealCategory,
+        fbLogin, socialLogin, openProfile, saveProfile, savePlan, handleFile, scanImage, addMeal, isSavingMeal, updateMealCategory,
         removeMeal,
     };
 
