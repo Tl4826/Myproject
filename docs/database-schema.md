@@ -86,3 +86,36 @@ This document includes schema metadata only: no real user rows, passwords, sessi
 ## 4. Account metadata extension — verified 28/11/2026
 
 The additive migration [002_account_metadata.sql](../database/migrations/002_account_metadata.sql) was applied on Neon after PostgreSQL CI passed. Live catalog now contains seven tables: the original four and `user_profiles`, `user_plans`, `user_saved_reports`. The new tables have RLS enabled and 14 PK/FK/UNIQUE/CHECK constraints in total. See the [updated ERD and scope](ACCOUNT_SCHEMA_PROPOSAL.md). These are metadata tables only; existing local profiles, plan details and reports have not been uploaded. No real user rows were read during verification.
+
+
+### user_profiles
+
+Stores the user's profile. Relationship: 1 : 0..1 with social_users.
+
+| Column | PostgreSQL type | Nullable | Default / key |
+|---|---|---|---|
+| user_id | UUID | No | PK, FK → social_users.id (ON DELETE CASCADE) |
+| email | TEXT | Yes | — |
+| name | TEXT | Yes | — |
+| age | INTEGER | Yes | — |
+| gender | TEXT | Yes | — |
+| height | NUMERIC(6,2) | Yes | — |
+| weight | NUMERIC(6,2) | Yes | — |
+| bmi | NUMERIC(5,2) | Yes | — |
+| activity | NUMERIC(4,2) | Yes | — |
+| goal | TEXT | Yes | — |
+| created_at | TIMESTAMPTZ | No | now() |
+| updated_at | TIMESTAMPTZ | No | now() |
+
+### user_plans
+
+Stores user plans. Relationship: 1 : 0..N with social_users. Defined in migration 002.
+
+| Column | PostgreSQL type | Nullable | Default / key |
+|---|---|---|---|
+| id | UUID | No | PK, gen_random_uuid() |
+| user_id | UUID | No | FK → social_users.id (ON DELETE CASCADE) |
+| title | TEXT | No | 1 to 120 characters |
+| start_on | DATE | No | — |
+| end_on | DATE | No | CHECK end_on >= start_on |
+| created_at | TIMESTAMPTZ | No | now() |

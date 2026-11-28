@@ -41,16 +41,20 @@ CREATE TABLE IF NOT EXISTS user_diary_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_diary_user_date
     ON user_diary_entries (user_id, eaten_on DESC);
-
-
--- Apply this change to databases created before email/password sign-in was added.
-ALTER TABLE social_users DROP CONSTRAINT IF EXISTS social_users_provider_check;
-ALTER TABLE social_users ADD CONSTRAINT social_users_provider_check
-  CHECK (provider IN ('google', 'facebook', 'email'));
-
-CREATE TABLE IF NOT EXISTS email_credentials (
-  user_id UUID PRIMARY KEY REFERENCES social_users(id) ON DELETE CASCADE,
-  normalized_email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  CONSTRAINT normalized_email_lowercase CHECK (normalized_email = lower(trim(normalized_email)))
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id UUID PRIMARY KEY REFERENCES social_users(id) ON DELETE CASCADE,
+    display_name TEXT NOT NULL DEFAULT '' CHECK (char_length(display_name) <= 120),
+    locale TEXT NOT NULL DEFAULT 'vi-VN' CHECK (char_length(locale) <= 20),
+    timezone TEXT NOT NULL DEFAULT 'Asia/Ho_Chi_Minh' CHECK (char_length(timezone) <= 80),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS user_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES social_users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL CHECK (char_length(trim(title)) BETWEEN 1 AND 120),
+    start_on DATE NOT NULL,
+    end_on DATE NOT NULL CHECK (end_on >= start_on),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_user_plans_owner ON user_plans(user_id, start_on DESC);
