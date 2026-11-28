@@ -4,10 +4,15 @@ import puppeteer from 'puppeteer';
 const origin='http://127.0.0.1:3000';
 const results=[];
 await fs.mkdir('lighthouse-reports',{recursive:true});
-for (const path of ['/','/home','/diary','/baocao']) {
+const audits = [
+  ...['/','/home','/diary','/baocao'].map(path=>({path,device:'mobile'})),
+  {path:'/home',device:'desktop'}
+];
+for (const {path,device} of audits) {
   const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
   try {
     const page=await browser.newPage();
+    await page.setViewport(device==='desktop'?{width:1440,height:900}:{width:390,height:844,isMobile:true,hasTouch:true,deviceScaleFactor:2});
     if(path!=='/'){
       await page.goto(origin+'/login',{waitUntil:'domcontentloaded',timeout:60000});
       const email='lh-'+Date.now()+'@example.invalid';
@@ -21,15 +26,17 @@ for (const path of ['/','/home','/diary','/baocao']) {
     await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForSelector(path==='/'?'h1':'main',{visible:true,timeout:45000});
     if(new URL(page.url()).pathname!==path) throw new Error('Unexpected audit route '+page.url());
+    const config=device==='desktop'?{extends:'lighthouse:default',settings:{formFactor:'desktop',screenEmulation:{mobile:false,width:1350,height:940,deviceScaleFactor:1,disabled:false},throttlingMethod:'simulate',throttling:{rttMs:40,throughputKbps:10240,cpuSlowdownMultiplier:1}}}:undefined;
     const result=await lighthouse(origin+path,{port:Number(new URL(browser.wsEndpoint()).port),output:['html','json'],
-      logLevel:'error',disableStorageReset:true,onlyCategories:['performance','accessibility','best-practices','seo']});
+      logLevel:'error',disableStorageReset:true,onlyCategories:['performance','accessibility','best-practices','seo']},config);
     if(!result || result.lhr.runtimeError || new URL(result.lhr.finalDisplayedUrl || result.lhr.finalUrl).pathname!==path)
       throw new Error('Invalid Lighthouse result for '+path);
     await page.close();
-    const slug=path==='/'?'landing':path.slice(1);
+    const slug=(path==='/'?'landing':path.slice(1))+(device==='desktop'?'-desktop':'');
     await fs.writeFile('lighthouse-reports/'+slug+'.html',result.report[0]);
     await fs.writeFile('lighthouse-reports/'+slug+'.json',result.report[1]);
-    results.push({route:path,...Object.fromEntries(Object.entries(result.lhr.categories).map(([k,v])=>[k,Math.round(v.score*100)]))});
+    if(result.lhr.configSettings.formFactor!==device) throw new Error('Unexpected audit device '+device);
+    results.push({route:path,device,...Object.fromEntries(Object.entries(result.lhr.categories).map(([k,v])=>[k,Math.round(v.score*100)]))});
     await fs.writeFile('lighthouse-reports/summary.json',JSON.stringify(results,null,2));
   } finally { await browser.close(); }
 }
