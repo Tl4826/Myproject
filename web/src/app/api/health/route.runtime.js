@@ -1,0 +1,5 @@
+import { proxyAI } from '../../../lib/server/ai-proxy.mjs';
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+export const GET = request => proxyAI(request,'health');

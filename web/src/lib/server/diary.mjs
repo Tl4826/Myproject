@@ -18,6 +18,27 @@ const shown = row => ({
   thumb: null
 });
 
+export async function readDiary(sql, userId) {
+  const rows = await sql`SELECT id, eaten_on, food_name, meal_category, calories, protein, carbs, fat, created_at
+    FROM user_diary_entries WHERE user_id = ${userId}
+    ORDER BY eaten_on DESC, created_at DESC LIMIT 1000`;
+  return rows.map(shown);
+}
+
+export async function mutateDiary(sql, userId, id, category, method) {
+  if (typeof id !== 'string' || !validId.test(id)) return {status:400,body:{error:'ID món ăn không hợp lệ'}};
+  if (method === 'PATCH') {
+    if (!mealTypes.has(category)) return {status:400,body:{error:'Loại bữa ăn không hợp lệ'}};
+    const rows = await sql`UPDATE user_diary_entries SET meal_category = ${category}
+      WHERE id = ${id} AND user_id = ${userId} RETURNING id`;
+    return {status:rows.length?200:404,body:{ok:!!rows.length}};
+  }
+  if (method !== 'DELETE') return {status:405,body:{error:'Method not allowed'}};
+  const rows = await sql`DELETE FROM user_diary_entries
+    WHERE id = ${id} AND user_id = ${userId} RETURNING id`;
+  return {status:rows.length?200:404,body:{ok:!!rows.length}};
+}
+
 export default async function handler(req, res) {
     const startedAt = Date.now();
   res.setHeader('Cache-Control','no-store');
@@ -35,10 +56,7 @@ export default async function handler(req, res) {
     const user = await getAuthenticatedUser(req, sql);
     if (!user) return send(res,401,{error:'Cần đăng nhập để sử dụng nhật ký'});
     if (req.method === 'GET') {
-      const rows = await sql`SELECT id, eaten_on, food_name, meal_category, calories, protein, carbs, fat, created_at
-        FROM user_diary_entries WHERE user_id = ${user.id}
-        ORDER BY eaten_on DESC, created_at DESC LIMIT 1000`;
-      return send(res,200,{meals:rows.map(shown)});
+      return send(res,200,{meals:await readDiary(sql,user.id)});
     }
     if (req.method === 'POST') {
       const b = req.body || {}, name = typeof b.name === 'string' ? b.name.trim() : '';
@@ -54,17 +72,8 @@ export default async function handler(req, res) {
       return send(res,201,{meal:shown(rows[0])});
     }
     const id = req.method === 'DELETE' ? req.query?.id : req.body?.id;
-    if (typeof id !== 'string' || !validId.test(id)) return send(res,400,{error:'ID món ăn không hợp lệ'});
-    if (req.method === 'PATCH') {
-      const category = req.body?.category;
-      if (!mealTypes.has(category)) return send(res,400,{error:'Loại bữa ăn không hợp lệ'});
-      const rows = await sql`UPDATE user_diary_entries SET meal_category = ${category}
-        WHERE id = ${id} AND user_id = ${user.id} RETURNING id`;
-      return send(res,rows.length?200:404,{ok:!!rows.length});
-    }
-    const rows = await sql`DELETE FROM user_diary_entries
-      WHERE id = ${id} AND user_id = ${user.id} RETURNING id`;
-    return send(res,rows.length?200:404,{ok:!!rows.length});
+    const result = await mutateDiary(sql,user.id,id,req.body?.category,req.method);
+    return send(res,result.status,result.body);
   } catch (_) {
     await reportServiceError('diary_unavailable', Date.now() - startedAt);
     return send(res,503,{error:'Nhật ký tạm thời không kết nối được database'});

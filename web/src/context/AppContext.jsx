@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { updateDiaryCategory, deleteDiaryMeal } from '../lib/server/diary-actions.js';
 import {
     USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, FOOD_CLASSES, load, dayKey,
     getUser, mealByHour, toThumb, suggestGoal, GOAL_LABEL, suggestDishes, computePlan,
@@ -13,19 +14,19 @@ const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
 // Toàn bộ state + hàm xử lý dùng chung của ứng dụng (trước đây nằm trong NutriApp)
-export function AppProvider({ children }) {
+export function AppProvider({ children, initialData = null }) {
     // Browser storage is only a UI cache; a server-verified cookie gates access.
     const [uid, setUid] = useState('');
-    const [today, setToday] = useState(() => dayKey(new Date()));
+    const [today, setToday] = useState(() => initialData?.day || dayKey(new Date()));
 
     const readMeals = id =>
         uload('nv_meals', [], id)
             .filter(m => m && typeof m.name === 'string' && !m.name.includes('Cà Phê'))
             .map(m => ({ date: dayKey(new Date()), ...m }));
 
-    const [meals, setMeals] = useState(() => (uid ? readMeals(uid) : []));
+    const [meals, setMeals] = useState(() => initialData?.meals || []);
     // All verified providers use the account-scoped diary API.
-    const [socialAccount, setSocialAccount] = useState(null);
+    const [socialAccount, setSocialAccount] = useState(initialData?.user || null);
     const deviceMeals = id => readMeals(id).map((meal, i) => ({ ...meal, id: String(meal.id || i).startsWith('device:') ? String(meal.id || i) : 'device:' + String(meal.id || i), deviceOnly: true }));
     const router = useRouter();
     const navigate = useCallback((path, options) => {
@@ -66,9 +67,9 @@ export function AppProvider({ children }) {
     const [rememberMe, setRememberMe] = useState(true);
     const [authName, setAuthName] = useState('');
     const [authPassword, setAuthPassword] = useState('');
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [authChecking, setAuthChecking] = useState(true);
-    const [userEmail, setUserEmail] = useState('');
+    const [isLoggedIn, setIsLoggedIn] = useState(Boolean(initialData?.user));
+    const [authChecking, setAuthChecking] = useState(initialData === null);
+    const [userEmail, setUserEmail] = useState(initialData?.user?.name || initialData?.user?.email || '');
     const [isTeamOpen, setIsTeamOpen] = useState(false);
     const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -423,15 +424,15 @@ export function AppProvider({ children }) {
 
     // Tài khoản chỉ được chấp nhận sau khi backend xác minh Google/Facebook.
     const fetchSocialDiary = async () => {
-        const readPath = process.env.NEXT_PUBLIC_NUTRIVN_RUNTIME_READS === '1' ? '/api/next-diary' : '/api/diary';
+        const readPath = '/api/diary';
         const res = await fetch(readPath, { credentials: 'same-origin', cache: 'no-store' });
         if (!res.ok) throw new Error('Không thể tải nhật ký của tài khoản');
         const data = await res.json();
         return Array.isArray(data.meals) ? data.meals : [];
     };
 
-    const activateSocialAccount = async user => {
-        const cloudMeals = await fetchSocialDiary();
+    const activateSocialAccount = async (user, initialMeals) => {
+        const cloudMeals = initialMeals ?? await fetchSocialDiary();
         const nid = idOf(user);
         setUid(nid);
         setHeroScanState('idle');
@@ -467,9 +468,12 @@ export function AppProvider({ children }) {
         (async () => {
             try {
                 // Revalidate the HttpOnly cookie on every fresh page load.
-                const res = await fetch('/api/social-auth', { credentials: 'same-origin' });
-                if (!res.ok) throw new Error('Session not verified');
-                const data = await res.json();
+                let data = initialData;
+                if (!data) {
+                    const res = await fetch('/api/social-auth', { credentials: 'same-origin', cache: 'no-store' });
+                    if (!res.ok) throw new Error('Session not verified');
+                    data = await res.json();
+                }
                 if (!active || !data.user) return;
                 if (data.user.provider === 'email') {
                     const u = data.user;
@@ -478,7 +482,7 @@ export function AppProvider({ children }) {
                     const name = cached?.provider === 'email' && cached.email === u.email
                         ? cached.name || u.name : u.name;
                     const verified = { ...u, name };
-                    const cloudMeals = await fetchSocialDiary();
+                    const cloudMeals = initialData?.meals ?? await fetchSocialDiary();
                     if (!active) return;
                     const storage = localStorage.getItem('nv_user') ? localStorage : sessionStorage;
                     try {
@@ -493,7 +497,7 @@ export function AppProvider({ children }) {
                     setUserEmail(name || u.email);
                     setIsLoggedIn(true);
                 } else if (['google', 'facebook'].includes(data.user.provider)) {
-                    await activateSocialAccount(data.user);
+                    await activateSocialAccount(data.user, initialData?.meals);
                 }
             } catch {
                 if (!active) return;
@@ -843,12 +847,10 @@ export function AppProvider({ children }) {
         if (!meal || !socialAccount) return;
         if (!meal.deviceOnly) {
             try {
-                const response = await fetch('/api/diary', {
-                    method: 'PATCH', credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id, category })
-                });
-                if (!response.ok) throw new Error();
+                if (process.env.NEXT_PUBLIC_NUTRIVN_MOCK_API === '1') {
+                    const response = await fetch('/api/diary', {method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,category})});
+                    if (!response.ok) throw new Error();
+                } else if (!(await updateDiaryCategory(id,category)).ok) throw new Error();
             } catch { notify('Không thể cập nhật bữa ăn'); return; }
         }
         setMeals(prev => prev.map(meal => meal.id === id ? { ...meal, category } : meal));
@@ -859,10 +861,10 @@ export function AppProvider({ children }) {
         if (!meal || !socialAccount) return;
         if (!meal.deviceOnly) {
             try {
-                const response = await fetch('/api/diary?id=' + encodeURIComponent(id), {
-                    method: 'DELETE', credentials: 'same-origin'
-                });
-                if (!response.ok) throw new Error();
+                if (process.env.NEXT_PUBLIC_NUTRIVN_MOCK_API === '1') {
+                    const response = await fetch('/api/diary?id=' + encodeURIComponent(id), {method:'DELETE',credentials:'same-origin'});
+                    if (!response.ok) throw new Error();
+                } else if (!(await deleteDiaryMeal(id)).ok) throw new Error();
             } catch { notify('Không thể xoá món ăn'); return; }
         }
         setMeals(prev => prev.filter(meal => meal.id !== id));

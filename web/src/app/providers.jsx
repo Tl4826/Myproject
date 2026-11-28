@@ -45,9 +45,9 @@ function AppShell({ children }) {
     );
 }
 
-export default function Providers({ children }) {
+export default function Providers({ children, initialData }) {
     return (
-        <AppProvider>
+        <AppProvider initialData={initialData}>
             <AppShell>{children}</AppShell>
             <OptionalDiagnostics />
         </AppProvider>

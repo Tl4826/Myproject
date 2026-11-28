@@ -1,19 +1,9 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { getInitialData } from '../../lib/server/session-data.mjs';
+import ProtectedShell from './ProtectedShell.jsx';
 
-import { useEffect } from 'react';
-import Layout from '../../components/Layout.jsx';
-import { useApp } from '../../context/AppContext.jsx';
-
-export default function ProtectedLayout({ children }) {
-    const { isLoggedIn, navigate } = useApp();
-
-    useEffect(() => {
-        if (!isLoggedIn) {
-            navigate('/login', { replace: true });
-        }
-    }, [isLoggedIn, navigate]);
-
-    if (!isLoggedIn) return null;
-
-    return <Layout>{children}</Layout>;
+export default async function ProtectedLayout({children}) {
+    const initialData = await getInitialData();
+    if (initialData && !initialData.user) redirect('/login');
+    return <ProtectedShell>{children}</ProtectedShell>;
 }

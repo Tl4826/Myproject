@@ -1,6 +1,9 @@
 import Script from 'next/script';
 import './globals.css';
 import Providers from './providers.jsx';
+import { getInitialData } from '../lib/server/session-data.mjs';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
     title: {
@@ -18,7 +21,8 @@ export const metadata = {
     },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+    const initialData = await getInitialData();
     return (
         <html lang="vi">
             <head>
@@ -28,7 +32,7 @@ export default function RootLayout({ children }) {
                 />
             </head>
             <body className="bg-slate-50 text-slate-900">
-                <Providers>{children}</Providers>
+                <Providers initialData={initialData}>{children}</Providers>
                 <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
             </body>
         </html>
