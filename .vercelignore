@@ -18,3 +18,8 @@ ml/*.md
 ml/requirements.txt
 ml/service/test_*.py
 ml/service/smoke_test.py
+
+# Legacy Node handlers now run in Next.js under web/src/app/api.
+api/email-auth.js
+api/social-auth.js
+api/diary.js

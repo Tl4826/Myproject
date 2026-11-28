@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npm --prefix web ci && npm --prefix web run build",
-  "outputDirectory": "web/out",
-  "cleanUrls": true,
+  "framework": null,
+  "buildCommand": "mkdir -p ai-public",
+  "outputDirectory": "ai-public",
   "functions": {
     "api/index.py": {
       "includeFiles": "ml/**",
@@ -12,32 +12,12 @@
   },
   "rewrites": [
     {
-      "source": "/api/email-auth",
-      "destination": "/api/email-auth.js"
-    },
-    {
-      "source": "/api/social-auth",
-      "destination": "/api/social-auth.js"
-    },
-    {
-      "source": "/api/diary",
-      "destination": "/api/diary.js"
-    },
-    {
       "source": "/api/health",
       "destination": "/api/index?__nutrivn_route=health"
     },
     {
       "source": "/api/predict",
       "destination": "/api/index?__nutrivn_route=predict"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }
