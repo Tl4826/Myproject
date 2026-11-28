@@ -41,3 +41,43 @@ CREATE TABLE IF NOT EXISTS user_diary_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_diary_user_date
     ON user_diary_entries (user_id, eaten_on DESC);
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id UUID PRIMARY KEY
+        REFERENCES social_users(id)
+        ON DELETE CASCADE,
+
+    email TEXT,
+    name TEXT NOT NULL,
+    age INTEGER,
+    gender TEXT,
+    height NUMERIC(6,2),
+    weight NUMERIC(6,2),
+    bmi NUMERIC(5,2),
+    activity NUMERIC(4,2),
+    goal TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS nutrition_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    user_id UUID NOT NULL
+        REFERENCES social_users(id)
+        ON DELETE CASCADE,
+
+    target_weight NUMERIC(6,2) NOT NULL,
+    start_weight NUMERIC(6,2) NOT NULL,
+
+    weeks INTEGER NOT NULL,
+    start_date DATE NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_profile_user
+ON user_profiles(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_plan_user
+ON nutrition_plans(user_id);
