@@ -56,7 +56,7 @@ jobs:
             const del=await request('/api/diary?id='+encodeURIComponent(mealId),'DELETE');assert.equal(del.status,200);const after=await request('/api/diary');assert.equal(after.status,200);assert.equal((await after.json()).meals.some(x=>x.id===mealId),false);mealId='';return {created:true,updated:true,deleted:true};
           });
           try {
-            for(const path of ['/diary','/baocao']){
+            for(const path of ['/home','/diary','/baocao']){
               await check('authenticated Lighthouse '+path,async()=>{
                 assert.ok(cookie);const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
                 try{
@@ -80,6 +80,7 @@ jobs:
               const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
               const consent={origin,checkedAt:new Date().toISOString(),checks:[],note:'Third-party telemetry requests intercepted; no GA4 or Sentry data delivered by this test. Synthetic inputs only; no raw envelopes or session metadata retained.'};
               const record=name=>consent.checks.push({name,pass:true});
+              let stage='initialization';
               try{
                 await browser.setCookie({name:'nutrivn_session',value:cookie.slice('nutrivn_session='.length),url:origin,secure:true,httpOnly:true,sameSite:'Lax'});
                 const page=await browser.newPage();
@@ -108,16 +109,25 @@ jobs:
                 const counts=()=>[gaRequests,sentryRequests,events.length];
                 const publicRoutes=['/','/about','/contact'];
                 const selector='aside[aria-label="Tùy chọn đo lường"] button';
-                const chooseConsent=async(label)=>{
-                  const handle=await page.waitForFunction((sel,text)=>Array.from(document.querySelectorAll(sel)).find(b=>b.textContent.trim()===text&&!b.disabled)||false,{timeout:30000},selector,label);
-                  const button=handle.asElement();assert.ok(button,'Expected consent button: '+label);
-                  try{await button.click();}finally{await handle.dispose();}
+                const chooseConsent=async(choice)=>{
+                  stage='click consent '+choice;
+                  await page.waitForSelector(selector,{visible:true,timeout:30000});
+                  const buttons=await page.$(selector);
+                  assert.equal(buttons.length,2,'Expected exactly two consent controls');
+                  try{
+                    // DOM order is the same as the previously verified consent workflow:
+                    // first = allow, second = decline. Verify the resulting persisted choice.
+                    await buttons[choice==='yes'?0:1].click();
+                  }finally{await Promise.all(buttons.map(b=>b.dispose()));}
+                  stage='verify persisted consent '+choice;
+                  await page.waitForFunction(c=>localStorage.getItem('nv_optional_diagnostics')===c,{timeout:15000},choice);
                 };
                 await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:60000});
                 await page.waitForSelector(selector,{timeout:30000});
                 await emit();await settle();assert.deepEqual(counts(),[0,0,0]);record('default off');
-                await chooseConsent('Cho phép');
+                await chooseConsent('yes');
                 for(const path of publicRoutes){
+                  stage='public route '+path;
                   if(path!=='/')await page.goto(origin+path+'?qa=synthetic-privacy-marker',{waitUntil:'domcontentloaded',timeout:60000});
                   assert.equal(new URL(page.url()).pathname,path);
                   await page.waitForSelector(selector,{timeout:30000});
@@ -135,6 +145,7 @@ jobs:
                   assert.ok(!JSON.stringify(e).includes('synthetic-privacy-marker'));record('opt-in '+path+' sanitized page_view and browser context');
                 }
                 for(const path of ['/home','/diary','/baocao']){
+                  stage='private route '+path;
                   const before=counts();
                   await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:60000});
                   await page.waitForSelector('main',{visible:true,timeout:30000});assert.equal(new URL(page.url()).pathname,path);
@@ -145,13 +156,13 @@ jobs:
                 await page.goto(origin+'/contact',{waitUntil:'domcontentloaded',timeout:60000});
                 await page.waitForSelector(selector,{timeout:30000});
                 await page.waitForFunction(()=>window.dataLayer?.some(a=>a[0]==='event'&&a[1]==='page_view'),{timeout:15000});
-                await chooseConsent('Từ chối / tắt');
+                await chooseConsent('no');
                 await page.waitForFunction(()=>Object.keys(window).some(k=>k.startsWith('ga-disable-G-')&&window[k]===true),{timeout:15000});
                 await settle();const before=counts();
                 await page.evaluate(()=>window.dispatchEvent(new Event('unhandledrejection')));await settle();
                 assert.deepEqual(counts(),before);record('decline disables telemetry');
                 return {checks:consent.checks.length};
-              }catch(e){consent.checks.push({name:'consent verification',pass:false});throw e;}
+              }catch(e){consent.checks.push({name:'consent verification',pass:false,stage});throw new Error(stage+': '+String(e.message).slice(0,130));}
               finally{await browser.close();await fs.writeFile('evidence/consent.json',JSON.stringify(consent,null,2));console.log(JSON.stringify(consent,null,2));}
             });
           } finally {
