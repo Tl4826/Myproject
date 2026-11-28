@@ -1,0 +1,99 @@
+name: Final production email diary verification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/final-production-diary.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ORIGIN: https://nutrivn-myproject.vercel.app
+      TZ: Asia/Ho_Chi_Minh
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false puppeteer@24 lighthouse@12
+      - name: Verify production sync, responsive UI and safe cleanup
+        run: |
+          mkdir -p evidence
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          import {randomUUID} from 'node:crypto';
+          import puppeteer from 'puppeteer';
+          import lighthouse from 'lighthouse';
+          const origin=process.env.ORIGIN, email='qa-sync-'+randomUUID()+'@example.invalid', password=randomUUID()+randomUUID();
+          const marker='Synthetic QA '+randomUUID().slice(0,8);
+          const summary={origin,checkedAt:new Date().toISOString(),checks:[],scores:[],note:'One synthetic QA account; delete only its test meals and revoke both test sessions. Synthetic account may remain. No real user data; no telemetry opt-in. Numeric authenticated Lighthouse summaries only.'};
+          const save=()=>fs.writeFile('evidence/summary.json',JSON.stringify(summary,null,2));
+          const pass=async(name,extra={})=>{summary.checks.push({name,pass:true,...extra});await save();};
+          const request=async(path,method='GET',body,cookie='')=>fetch(origin+path,{method,headers:{Origin:origin,...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45000)});
+          const cookies=[];let id='',browser;
+          const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Ho_Chi_Minh'});
+          try{
+            const h=await request('/api/health');assert.equal(h.status,200);assert.equal((await h.json()).class_count,100);await pass('real AI health 100 classes');
+            const reg=await request('/api/email-auth','POST',{action:'register',email,password,name:'NutriVN QA',remember:false});assert.equal(reg.status,201);cookies.push(reg.headers.get('set-cookie').split(';')[0]);
+            const login=await request('/api/email-auth','POST',{action:'login',email,password,remember:false});assert.equal(login.status,200);cookies.push(login.headers.get('set-cookie').split(';')[0]);assert.notEqual(cookies[0],cookies[1]);await pass('two real authenticated sessions');
+            browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            const contexts=[await browser.createBrowserContext(),await browser.createBrowserContext()];
+            const pages=[];
+            for(let i=0;i<2;i++){
+              await contexts[i].setCookie({name:'nutrivn_session',value:cookies[i].slice('nutrivn_session='.length),url:origin,secure:true,httpOnly:true,sameSite:'Lax'});
+              const page=await contexts[i].newPage();await page.emulateTimezone('Asia/Ho_Chi_Minh');pages.push(page);
+            }
+            const [a,b]=pages;
+            await a.goto(origin+'/diary',{waitUntil:'domcontentloaded'});await a.waitForSelector('main',{timeout:30000});
+            const created=await request('/api/diary','POST',{name:marker,date:today,category:'lunch',calories:123,protein:null,carbs:null,fat:null},cookies[0]);assert.equal(created.status,201);const meal=(await created.json()).meal;id=meal.id;assert.ok(id);assert.equal(meal.thumb,null);
+            await a.reload({waitUntil:'domcontentloaded'});await a.waitForFunction(m=>document.querySelector('main')?.innerText.includes(m),{timeout:30000},marker);
+            await b.goto(origin+'/diary',{waitUntil:'domcontentloaded'});await b.waitForFunction(m=>document.querySelector('main')?.innerText.includes(m),{timeout:30000},marker);
+            await pass('Neon entry visible in both separate browser contexts');
+            await b.goto(origin+'/baocao',{waitUntil:'domcontentloaded'});await b.waitForFunction(()=>document.querySelector('main')?.innerText.includes('TB: 123 kcal/ngày'),{timeout:30000});await pass('weekly report derives from synchronized server entry');
+            for(const path of ['/home','/diary','/baocao']){
+              for(const width of [375,768,1440]){
+                await b.setViewport({width,height:900});await b.goto(origin+path,{waitUntil:'domcontentloaded'});await b.waitForSelector('main',{timeout:30000});
+                const noOverflow=await b.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1);
+                assert.ok(noOverflow,path+' overflows at '+width);await pass('responsive '+path+' '+width);
+              }
+            }
+            await b.goto(origin+'/diary',{waitUntil:'domcontentloaded'});await b.waitForFunction(m=>document.querySelector('main')?.innerText.includes(m),{timeout:30000},marker);
+            const row=await b.waitForFunction(m=>Array.from(document.querySelectorAll('main select')).find(x=>x.parentElement?.parentElement?.innerText.includes(m)),{timeout:20000},marker);
+            const select=row.asElement();const patch=b.waitForResponse(r=>new URL(r.url()).pathname==='/api/diary'&&r.request().method()==='PATCH',{timeout:30000});await select.select('dinner');assert.equal((await patch).status(),200);
+            const listed=await request('/api/diary','GET',undefined,cookies[0]);assert.equal((await listed.json()).meals.find(x=>x.id===id)?.category,'dinner');await pass('UI edit persists in Neon across sessions');
+            const delButton=await b.waitForFunction(m=>Array.from(document.querySelectorAll('button[aria-label="Xoá món"]')).find(x=>x.parentElement?.parentElement?.innerText.includes(m)),{timeout:20000},marker);
+            const deletion=b.waitForResponse(r=>new URL(r.url()).pathname==='/api/diary'&&r.request().method()==='DELETE',{timeout:30000});await delButton.asElement().click();assert.equal((await deletion).status(),200);
+            const after=await request('/api/diary','GET',undefined,cookies[0]);assert.equal((await after.json()).meals.some(x=>x.id===id),false);id='';
+            await a.reload({waitUntil:'domcontentloaded'});await a.waitForSelector('main',{timeout:30000});assert.equal(await a.evaluate(m=>document.querySelector('main')?.innerText.includes(m),marker),false);await pass('UI delete persists across sessions');
+            for(const c of contexts)await c.close();
+            await browser.setCookie({name:'nutrivn_session',value:cookies[0].slice('nutrivn_session='.length),url:origin,secure:true,httpOnly:true,sameSite:'Lax'});
+            for(const {path,device} of [
+              {path:'/diary',device:'mobile'},{path:'/baocao',device:'mobile'},
+              {path:'/home',device:'mobile'},{path:'/home',device:'desktop'}
+            ]){
+              const config=device==='desktop'?{extends:'lighthouse:default',settings:{formFactor:'desktop',screenEmulation:{mobile:false,width:1350,height:940,deviceScaleFactor:1,disabled:false},throttlingMethod:'simulate',throttling:{rttMs:40,throughputKbps:10240,cpuSlowdownMultiplier:1}}}:undefined;
+              const audit=await lighthouse(origin+path,{port:Number(new URL(browser.wsEndpoint()).port),output:'json',logLevel:'error',disableStorageReset:true,onlyCategories:['performance','accessibility','best-practices','seo']},config);
+              assert.ok(audit&&!audit.lhr.runtimeError);
+              const finalUrl=new URL(audit.lhr.finalDisplayedUrl||audit.lhr.finalUrl);
+              assert.equal(finalUrl.origin,origin);assert.equal(finalUrl.pathname,path);
+              assert.equal(audit.lhr.configSettings.formFactor,device);
+              summary.scores.push({route:path,device,...Object.fromEntries(Object.entries(audit.lhr.categories).map(([k,v])=>[k,Math.round(v.score*100)]))});
+              await pass('authenticated Lighthouse '+path+' '+device);
+            }
+          }catch(e){summary.checks.push({name:'production verification',pass:false,error:String(e.message).slice(0,200)});process.exitCode=1;}
+          finally{
+            if(browser)await browser.close();
+            if(id&&cookies[0]){try{const r=await request('/api/diary?id='+encodeURIComponent(id),'DELETE',undefined,cookies[0]);assert.ok([200,404].includes(r.status));await pass('cleanup synthetic meal');}catch{summary.checks.push({name:'cleanup synthetic meal',pass:false});process.exitCode=1;}}
+            for(const cookie of cookies){try{const r=await request('/api/social-auth','DELETE',undefined,cookie);assert.ok([200,204,401].includes(r.status));}catch{summary.checks.push({name:'logout QA session',pass:false});process.exitCode=1;}}
+            await save();console.log(JSON.stringify(summary,null,2));
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nutrivn-final-production-diary
+          path: evidence/
+          if-no-files-found: error

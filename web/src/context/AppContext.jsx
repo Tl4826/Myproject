@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+'use client';
+
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     USE_DEMO, API_URL, UPLOAD_FIELD, FACEBOOK_APP_ID, NUTRITION, FOOD_CLASSES, load, dayKey,
     getUser, mealByHour, toThumb, suggestGoal, GOAL_LABEL, suggestDishes, computePlan,
@@ -12,11 +14,8 @@ export const useApp = () => useContext(AppContext);
 
 // Toàn bộ state + hàm xử lý dùng chung của ứng dụng (trước đây nằm trong NutriApp)
 export function AppProvider({ children }) {
-    const [uid, setUid] = useState(() => {
-        const id = userId();
-        if (id) migrateLegacy(id);
-        return id;
-    });
+    // Browser storage is only a UI cache; a server-verified cookie gates access.
+    const [uid, setUid] = useState('');
     const [today, setToday] = useState(() => dayKey(new Date()));
 
     const readMeals = id =>
@@ -25,8 +24,14 @@ export function AppProvider({ children }) {
             .map(m => ({ date: dayKey(new Date()), ...m }));
 
     const [meals, setMeals] = useState(() => (uid ? readMeals(uid) : []));
+    // All verified providers use the account-scoped diary API.
     const [socialAccount, setSocialAccount] = useState(null);
-    const navigate = useNavigate();
+    const deviceMeals = id => readMeals(id).map((meal, i) => ({ ...meal, id: String(meal.id || i).startsWith('device:') ? String(meal.id || i) : 'device:' + String(meal.id || i), deviceOnly: true }));
+    const router = useRouter();
+    const navigate = useCallback((path, options) => {
+        if (options?.replace) router.replace(path);
+        else router.push(path);
+    }, [router]);
     const [heroScanState, setHeroScanState] = useState('idle');
     const [heroScannedDish, setHeroScannedDish] = useState(null);
     const [scanErr, setScanErr] = useState('');
@@ -61,11 +66,9 @@ export function AppProvider({ children }) {
     const [rememberMe, setRememberMe] = useState(true);
     const [authName, setAuthName] = useState('');
     const [authPassword, setAuthPassword] = useState('');
-    const [isLoggedIn, setIsLoggedIn] = useState(() => {
-        const u = getUser();
-        return Boolean(u && (u.provider === 'email' || !u.provider));
-    });
-    const [userEmail, setUserEmail] = useState(() => getUser()?.name || getUser()?.email || '');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [authChecking, setAuthChecking] = useState(true);
+    const [userEmail, setUserEmail] = useState('');
     const [isTeamOpen, setIsTeamOpen] = useState(false);
     const [isGuideOpen, setIsGuideOpen] = useState(false);
 
@@ -274,8 +277,9 @@ export function AppProvider({ children }) {
         if (!uid) return;
 
         try {
-            if (!socialAccount) {
-                localStorage.setItem(ukey('nv_meals', uid), JSON.stringify(meals));
+            // Existing email-account diary stays on this device; never silently upload it.
+            if (socialAccount?.provider === 'email') {
+                localStorage.setItem(ukey('nv_meals', uid), JSON.stringify(meals.filter(m => m.deviceOnly)));
             }
             localStorage.setItem(ukey('nv_target', uid), JSON.stringify(targetCal));
             localStorage.setItem(ukey('nv_weeks', uid), JSON.stringify(savedWeeklyLogs));
@@ -330,7 +334,7 @@ export function AppProvider({ children }) {
         if (!FACEBOOK_APP_ID) return;
         const sc = document.createElement('script');
         sc.src = 'https://connect.facebook.net/vi_VN/sdk.js'; sc.async = true;
-        sc.onload = () => FB.init({ appId: FACEBOOK_APP_ID, version: 'v23.0', cookie: false, xfbml: false });
+        sc.onload = () => window.FB?.init({ appId: FACEBOOK_APP_ID, version: 'v23.0', cookie: false, xfbml: false });
         document.body.appendChild(sc);
     }, []);
 
@@ -419,7 +423,8 @@ export function AppProvider({ children }) {
 
     // Tài khoản chỉ được chấp nhận sau khi backend xác minh Google/Facebook.
     const fetchSocialDiary = async () => {
-        const res = await fetch('/api/diary', { credentials: 'same-origin' });
+        const readPath = process.env.NEXT_PUBLIC_NUTRIVN_RUNTIME_READS === '1' ? '/api/next-diary' : '/api/diary';
+        const res = await fetch(readPath, { credentials: 'same-origin', cache: 'no-store' });
         if (!res.ok) throw new Error('Không thể tải nhật ký của tài khoản');
         const data = await res.json();
         return Array.isArray(data.meals) ? data.meals : [];
@@ -458,18 +463,50 @@ export function AppProvider({ children }) {
     };
 
     useEffect(() => {
-        if (getUser()?.provider === 'email') return;
         let active = true;
         (async () => {
             try {
+                // Revalidate the HttpOnly cookie on every fresh page load.
                 const res = await fetch('/api/social-auth', { credentials: 'same-origin' });
-                if (!res.ok) {
-                    try { localStorage.removeItem('nv_user'); sessionStorage.removeItem('nv_user'); } catch {}
-                    return;
-                }
+                if (!res.ok) throw new Error('Session not verified');
                 const data = await res.json();
-                if (active && data.user) await activateSocialAccount(data.user);
-            } catch { /* Không chấp nhận trạng thái login chưa được xác minh. */ }
+                if (!active || !data.user) return;
+                if (data.user.provider === 'email') {
+                    const u = data.user;
+                    const nid = idOf(u);
+                    const cached = getUser();
+                    const name = cached?.provider === 'email' && cached.email === u.email
+                        ? cached.name || u.name : u.name;
+                    const verified = { ...u, name };
+                    const cloudMeals = await fetchSocialDiary();
+                    if (!active) return;
+                    const storage = localStorage.getItem('nv_user') ? localStorage : sessionStorage;
+                    try {
+                        localStorage.removeItem('nv_user');
+                        sessionStorage.removeItem('nv_user');
+                        storage.setItem('nv_user', JSON.stringify(verified));
+                    } catch {}
+                    migrateLegacy(nid);
+                    switchUser(nid);
+                    setMeals([...deviceMeals(nid), ...cloudMeals]);
+                    setSocialAccount(verified);
+                    setUserEmail(name || u.email);
+                    setIsLoggedIn(true);
+                } else if (['google', 'facebook'].includes(data.user.provider)) {
+                    await activateSocialAccount(data.user);
+                }
+            } catch {
+                if (!active) return;
+                try {
+                    localStorage.removeItem('nv_user');
+                    sessionStorage.removeItem('nv_user');
+                } catch {}
+                setSocialAccount(null);
+                switchUser('');
+                setIsLoggedIn(false);
+            } finally {
+                if (active) setAuthChecking(false);
+            }
         })();
         return () => { active = false; };
     }, []);
@@ -489,8 +526,9 @@ export function AppProvider({ children }) {
         } catch (err) { notify(err.message || 'Lỗi đăng nhập'); }
     };
 
-    const login = (u, msg = 'Đăng nhập thành công') => {
+    const login = async (u, msg = 'Đăng nhập thành công') => {
         const nid = idOf(u);
+        const cloudMeals = await fetchSocialDiary();
 
         try {
             // Xóa tài khoản cũ ở cả hai nơi để tránh lấy nhầm tài khoản.
@@ -504,6 +542,8 @@ export function AppProvider({ children }) {
 
         migrateLegacy(nid);
         switchUser(nid);
+        setMeals([...deviceMeals(nid), ...cloudMeals]);
+        setSocialAccount(u);
 
         setIsLoggedIn(true);
         setUserEmail(u.name || u.email || '');
@@ -525,11 +565,15 @@ export function AppProvider({ children }) {
         }
     };
 
-    const logout = () => {
-        if (socialAccount) {
-            fetch('/api/social-auth', {
+    const logout = async () => {
+        try {
+            const res = await fetch('/api/social-auth', {
                 method: 'DELETE', credentials: 'same-origin'
-            }).catch(() => {});
+            });
+            if (!res.ok && res.status !== 401) throw new Error('Logout failed');
+        } catch {
+            notify('Không thể đăng xuất trên máy chủ. Vui lòng thử lại.');
+            return;
         }
         try {
             localStorage.removeItem('nv_user');
@@ -557,28 +601,24 @@ export function AppProvider({ children }) {
         notify('Đã đăng xuất');
         navigate('/');
     };
-       const handleAuthSubmit = async (e, mode) => {
+    const handleAuthSubmit = async (e, mode) => {
         e.preventDefault();
-        const email = userEmail.trim().toLowerCase();
-        const post = (url, body) => fetch(url, {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
         try {
-            if (mode === 'register') {
-                const r = await post('/api/register', { email, password: authPassword });
-                const d = await r.json().catch(() => ({}));
-                if (!r.ok) throw new Error(d.error || 'Đăng ký không thành công');
-            }
-            const r = await post('/api/login', { email, password: authPassword });
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok || !d.user) throw new Error(d.error || 'Đăng nhập không thành công');
-
-            login(
-                { id: d.user.id, email: d.user.email, name: mode === 'register' ? authName : '', provider: 'email' },
-                mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined
-            );
+            const r = await fetch('/api/email-auth', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: mode === 'register' ? 'register' : 'login',
+                    email: userEmail.trim().toLowerCase(),
+                    password: authPassword,
+                    name: mode === 'register' ? authName : undefined,
+                    remember: rememberMe
+                })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || !data.user) throw new Error(data.error || 'Đăng nhập không thành công');
+            // Only a verified server response can activate the UI session.
+            await login(data.user, mode === 'register' ? 'Tạo tài khoản thành công 🎉' : undefined);
             setAuthName('');
             setAuthPassword('');
         } catch (err) {
@@ -588,7 +628,7 @@ export function AppProvider({ children }) {
     const fbLogin = () => {
         if (!FACEBOOK_APP_ID || !window.FB)
             return notify('Facebook Login chưa được cấu hình hoặc SDK chưa tải xong');
-        FB.login(r => {
+        window.FB.login(r => {
             if (r.authResponse?.accessToken) socialLogin('facebook', r.authResponse.accessToken);
             else notify('Bạn chưa cấp quyền đăng nhập Facebook');
         }, { scope: 'public_profile,email' });
@@ -785,20 +825,23 @@ export function AppProvider({ children }) {
                 const response = await fetch('/api/diary', {
                     method: 'POST', credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newM)
+                    // Send only meal fields, never the local image thumbnail.
+                    body: JSON.stringify({ name: newM.name, date: newM.date, category: newM.category, calories: newM.calories, protein: newM.protein, carbs: newM.carbs, fat: newM.fat })
                 });
                 const data = await response.json();
                 if (!response.ok || !data.meal)
                     throw new Error(data.error || 'Không lưu được món ăn');
-                setMeals(prev => [...prev, data.meal]);
+                setMeals(prev => [...prev, { ...data.meal, deviceOnly: false }]);
             } catch (err) { notify(err.message || 'Lỗi database'); return false; }
-        } else setMeals(prev => [...prev, newM]);
+        } else { notify('Cần xác minh phiên đăng nhập trước khi lưu'); return false; }
         navigate('/diary');
         return true;
     };
 
     const updateMealCategory = async (id, category) => {
-        if (socialAccount) {
+        const meal = meals.find(m => m.id === id);
+        if (!meal || !socialAccount) return;
+        if (!meal.deviceOnly) {
             try {
                 const response = await fetch('/api/diary', {
                     method: 'PATCH', credentials: 'same-origin',
@@ -812,7 +855,9 @@ export function AppProvider({ children }) {
     };
 
     const removeMeal = async id => {
-        if (socialAccount) {
+        const meal = meals.find(m => m.id === id);
+        if (!meal || !socialAccount) return;
+        if (!meal.deviceOnly) {
             try {
                 const response = await fetch('/api/diary?id=' + encodeURIComponent(id), {
                     method: 'DELETE', credentials: 'same-origin'
@@ -828,7 +873,7 @@ export function AppProvider({ children }) {
         scanCandidates, scanCorrections, scanCorrectionSaved, chooseScannedDish,
         saveScanCorrection, exportScanCorrections, clearScanCorrections,
         totalCal, targetCal, remainingCal, progress, calorieStatus, showPw, setShowPw, toast,
-        notify, rememberMe, setRememberMe, authName, setAuthName, authPassword, setAuthPassword, isLoggedIn, userEmail,
+        notify, rememberMe, setRememberMe, authName, setAuthName, authPassword, setAuthPassword, isLoggedIn, authChecking, userEmail,
         setUserEmail, isTeamOpen, setIsTeamOpen, isGuideOpen, setIsGuideOpen, isOnboardOpen,
         setIsOnboardOpen, obName, setObName, obAge, setObAge, obGender, setObGender, obHeight,
         setObHeight, obWeight, setObWeight, obActivity, setObActivity, obGoal, setObGoal, profile,

@@ -1,4 +1,5 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS5kAAAAASUVORK5CYII=',
@@ -6,13 +7,7 @@ const PNG = Buffer.from(
 );
 
 async function login(page) {
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: '{"error":"QA isolated"}'
-    })
-  );
+  await mockAuth(page);
   await page.route('**/predict', route => route.abort());
 
   await page.goto('/login');
@@ -49,13 +44,7 @@ async function mock(page, body, status = 200) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: '{"error":"QA isolated"}'
-    })
-  );
+  await mockAuth(page);
   await page.route('**/predict', route => route.abort());
 });
 test('NV2-API-001 | HTTP 503 được xử lý', async ({ page }) => {

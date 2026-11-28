@@ -24,6 +24,14 @@ module.exports = defineConfig({
     video: 'retain-on-failure'
   },
 
+  // Start local Vite automatically unless an explicit test target is supplied.
+  webServer: process.env.NUTRIVN_WEB ? undefined : {
+    command: 'npm run dev -- --host localhost --port 5174 --strictPort',
+    url: 'http://localhost:5174',
+    reuseExistingServer: true,
+    timeout: 60000
+  },
+
   outputDir: 'test-results-v2',
 
   projects: [{

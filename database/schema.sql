@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS social_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider TEXT NOT NULL CHECK (provider IN ('google', 'facebook')),
+    provider TEXT NOT NULL CHECK (provider IN ('google', 'facebook', 'email')),
     provider_user_id TEXT NOT NULL,
     email TEXT,
     display_name TEXT NOT NULL DEFAULT '',

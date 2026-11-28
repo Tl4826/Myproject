@@ -1,3 +1,4 @@
+import { reportServiceError } from './error-monitor.mjs';
 // Staged implementation: not routed from /api/ until database + OAuth secrets exist.
 // Move this into a Vercel Node function only after applying schema.sql and configuring
 // DATABASE_URL, GOOGLE_CLIENT_ID, FACEBOOK_APP_ID, FACEBOOK_APP_SECRET.
@@ -91,6 +92,7 @@ export async function getAuthenticatedUser(req, sql) {
     return rows[0] || null;
 }
 export default async function handler(req, res) {
+    const startedAt = Date.now();
     res.setHeader('Cache-Control', 'no-store');
     if (!isReady()) return json(res, 503, { error: 'Chưa cấu hình database và OAuth trên Vercel' });
     if (!['POST', 'GET', 'DELETE'].includes(req.method)) {
@@ -130,8 +132,9 @@ export default async function handler(req, res) {
                 INSERT INTO social_sessions (token_hash, user_id, expires_at)
                 VALUES (${sha256(raw)}, ${user.id}, now() + INTERVAL '7 days')
             `;
+            const secure = isLocal ? '' : '; Secure';
             res.setHeader('Set-Cookie',
-                `${SESSION_COOKIE}=${raw}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
+                `${SESSION_COOKIE}=${raw}; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=${SESSION_SECONDS}`);
             return json(res, 200, { user: { id: user.id, provider: user.provider,
                 email: user.email, name: user.display_name, avatar: user.avatar_url } });
         }
@@ -139,7 +142,8 @@ export default async function handler(req, res) {
         if (!/^[0-9a-f]{64}$/.test(raw)) return json(res, 401, { error: 'Not signed in' });
         if (req.method === 'DELETE') {
             await sql`DELETE FROM social_sessions WHERE token_hash = ${sha256(raw)}`;
-            res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`);
+            const secure = isLocal ? '' : '; Secure';
+            res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/; HttpOnly${secure}; SameSite=Lax; Max-Age=0`);
             return json(res, 200, { ok: true });
         }
         const rows = await sql`
@@ -154,6 +158,7 @@ export default async function handler(req, res) {
     } catch (err) {
         // Never log credentials, access tokens, emails, app secret or DATABASE_URL.
         const isAuthFailure = /Google|Facebook|token|claims|signature|mismatch|key/i.test(err.message || '');
+        if (!isAuthFailure) await reportServiceError('social_auth_unavailable', Date.now() - startedAt);
         return json(res, isAuthFailure ? 401 : 503,
             { error: isAuthFailure ? 'Không xác minh được tài khoản' : 'Dịch vụ đăng nhập chưa sẵn sàng' });
     }

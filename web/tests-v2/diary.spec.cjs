@@ -1,4 +1,5 @@
 ﻿const { test, expect } = require('@playwright/test');
+const { mockAuth } = require('./mock-auth.cjs');
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS5kAAAAASUVORK5CYII=',
@@ -89,9 +90,10 @@ async function expectCount(page, count) {
 }
 
 async function logoutLocal(page) {
-  // Xóa phiên đăng nhập, giữ nguyên nhật ký
+  // Hủy phiên máy chủ giả lập, giữ nguyên nhật ký
   // của từng tài khoản trong localStorage.
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
+    await fetch('/api/social-auth', { method: 'DELETE', credentials: 'same-origin' });
     localStorage.removeItem('nv_user');
     sessionStorage.removeItem('nv_user');
   });
@@ -102,15 +104,7 @@ async function logoutLocal(page) {
 
 test.beforeEach(async ({ page }) => {
   // Giả lập các API để không ghi dữ liệu vào Neon.
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        error: 'QA isolated'
-      })
-    })
-  );
+  await mockAuth(page);
 
   // Chặn API nhận diện thật.
   await page.route('**/predict', route =>

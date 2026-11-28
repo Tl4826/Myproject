@@ -1,14 +1,20 @@
 {
   "buildCommand": "npm --prefix web ci && npm --prefix web run build",
-  "outputDirectory": "web/dist",
+  "outputDirectory": "web/out",
+  "cleanUrls": true,
   "functions": {
     "api/index.py": {
       "includeFiles": "ml/**",
+      "excludeFiles": "ml/models/**",
       "memory": 1024,
       "maxDuration": 60
     }
   },
   "rewrites": [
+    {
+      "source": "/api/email-auth",
+      "destination": "/api/email-auth.js"
+    },
     {
       "source": "/api/social-auth",
       "destination": "/api/social-auth.js"
@@ -16,6 +22,14 @@
     {
       "source": "/api/diary",
       "destination": "/api/diary.js"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/index?__nutrivn_route=health"
+    },
+    {
+      "source": "/api/predict",
+      "destination": "/api/index?__nutrivn_route=predict"
     },
     {
       "source": "/api/(.*)",

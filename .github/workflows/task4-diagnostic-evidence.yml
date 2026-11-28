@@ -1,0 +1,124 @@
+name: Task 4 final diagnostics and real photo
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/task4-diagnostic-evidence.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      ORIGIN: https://nutrivn-myproject.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false puppeteer@24
+        working-directory: web
+      - name: Fetch public-domain QA photo
+        run: |
+          mkdir -p evidence
+          python3 - <<'PY'
+          import hashlib, urllib.request
+          name='Pizza_image.jpg'
+          h=hashlib.md5(name.encode()).hexdigest()
+          url=f'https://upload.wikimedia.org/wikipedia/commons/{h[0]}/{h[:2]}/{name}'
+          with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'NutriVN course project QA (GitHub Actions)'}),timeout=60) as r:
+              data=r.read(8000001)
+          assert data[:2]==b'\xff\xd8' and len(data)<8000000
+          open('/tmp/qa-pizza.jpg','wb').write(data)
+          PY
+      - name: Test real photo UI and Sentry diagnostic transport
+        if: always()
+        working-directory: web
+        run: |
+          mkdir -p ../evidence
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import assert from 'node:assert/strict';
+          import {randomUUID} from 'node:crypto';
+          import puppeteer from 'puppeteer';
+          import {reportServiceError} from '../database/error-monitor.mjs';
+          const origin=process.env.ORIGIN;
+          const result={origin,checkedAt:new Date().toISOString(),photoSource:'https://commons.wikimedia.org/wiki/File:Pizza_image.jpg (CC0)',checks:[],limitations:'One public photo is a functional test, not an accuracy evaluation. One synthetic QA account may remain; no private data used. Backend diagnostic uses the same configured Sentry project, tagged preview; does not force a production failure.'};
+          const save=()=>fs.writeFile('../evidence/diagnostics.json',JSON.stringify(result,null,2));
+          const check=async(name,fn)=>{try{result.checks.push({name,pass:true,...await fn()});}catch(e){result.checks.push({name,pass:false,error:String(e.message).slice(0,160)});}await save();};
+          let cookie='',dsn='';
+          async function request(path,method='GET',body,session=cookie){
+            return fetch(origin+path,{method,headers:{Origin:origin,...(session?{Cookie:session}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45000)});
+          }
+          await check('backend diagnostic Sentry ingestion',async()=>{
+            const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            try{
+              const page=await browser.newPage();
+              await page.setRequestInterception(true);
+              page.on('request',r=>{
+                const host=new URL(r.url()).hostname;
+                if(host.endsWith('googletagmanager.com')||host.endsWith('google-analytics.com')||host.endsWith('analytics.google.com'))return void r.respond({status:200,contentType:'application/javascript',body:''}).catch(()=>{});
+                if(host.endsWith('.sentry.io')){
+                  if(r.method()==='POST')try{const h=JSON.parse(r.postData().trim().split('\n')[0]);if(typeof h.dsn==='string')dsn=h.dsn;}catch{}
+                  return void r.respond({status:200,headers:{'access-control-allow-origin':'*'},body:''}).catch(()=>{});
+                }
+                void r.continue().catch(()=>{});
+              });
+              await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:60000});
+              await page.waitForSelector('aside[aria-label="Tùy chọn đo lường"] button',{timeout:30000});
+              const buttons=await page.$$('aside[aria-label="Tùy chọn đo lường"] button');
+              await buttons[0].click();await new Promise(r=>setTimeout(r,500));
+              await page.evaluate(()=>window.dispatchEvent(new Event('error')));
+              for(let i=0;i<30&&!dsn;i++)await new Promise(r=>setTimeout(r,200));
+              assert.ok(dsn,'Public Sentry DSN was not observed');
+            }finally{await browser.close();}
+            let status=0,eventId='';
+            const originalFetch=globalThis.fetch;
+            process.env.SENTRY_DSN=dsn;process.env.VERCEL_ENV='preview';
+            globalThis.fetch=async(url,options)=>{
+              const payload=JSON.parse(options.body.trim().split('\n')[2]);
+              assert.equal(payload.message,'diagnostic_test');assert.equal(payload.environment,'preview');
+              assert.ok(Object.keys(payload).every(k=>['event_id','timestamp','platform','level','logger','message','fingerprint','environment'].includes(k)));
+              eventId=payload.event_id;
+              const res=await originalFetch(url,options);status=res.status;return res;
+            };
+            try{await reportServiceError('diagnostic_test');}finally{globalThis.fetch=originalFetch;delete process.env.SENTRY_DSN;dsn='';}
+            assert.ok(status>=200&&status<300,'Sentry ingestion did not return success');
+            return {status,eventId,environment:'preview',code:'diagnostic_test'};
+          });
+          await check('real pizza image through UI and diary',async()=>{
+            await fs.access('/tmp/qa-pizza.jpg');
+            const email='task4-photo-'+randomUUID()+'@example.invalid';
+            const r=await request('/api/email-auth','POST',{action:'register',email,password:randomUUID()+randomUUID(),name:'NutriVN QA',remember:false},'');
+            assert.equal(r.status,201);cookie=(r.headers.get('set-cookie')||'').split(';')[0];assert.ok(cookie.startsWith('nutrivn_session='));
+            const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+            try{
+              await browser.setCookie({name:'nutrivn_session',value:cookie.slice('nutrivn_session='.length),url:origin,secure:true,httpOnly:true,sameSite:'Lax'});
+              const page=await browser.newPage();
+              await page.goto(origin+'/home',{waitUntil:'domcontentloaded',timeout:60000});
+              const selector='input[type=file][aria-label="Chọn ảnh món ăn từ thư viện"]';
+              await page.waitForSelector(selector,{timeout:45000});
+              const input=await page.$(selector);
+              const pending=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/predict'&&r.request().method()==='POST',{timeout:90000});
+              await input.uploadFile('/tmp/qa-pizza.jpg');
+              const prediction=await pending;assert.equal(prediction.status(),200);
+              const p=await prediction.json();assert.equal(p.top3?.length,3);
+              await page.waitForFunction(()=>Array.from(document.querySelectorAll('select')).some(s=>Array.from(s.options).some(o=>o.value==='pizza')),{timeout:30000});
+              const selects=await page.$$('select');
+              for(const select of selects)if(await select.evaluate(s=>Array.from(s.options).some(o=>o.value==='pizza'))){await select.select('pizza');break;}
+              const saveButton=await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).find(b=>b.textContent.includes('LƯU ƯỚC TÍNH VÀO NHẬT KÝ')||b.textContent.includes('LƯU TÊN MÓN VÀO NHẬT KÝ')),{timeout:20000});
+              await saveButton.asElement().click();
+              await page.waitForFunction(()=>location.pathname==='/diary'&&/pizza/i.test(document.querySelector('main')?.innerText||''),{timeout:30000});
+              return {http:prediction.status(),top1:p.mon,top3:p.top3.map(x=>x.mon),expectedLabel:'pizza',correctedSelection:'pizza',diaryVisible:true};
+            }finally{await browser.close();}
+          });
+          if(cookie)await check('logout synthetic QA session',async()=>{const r=await request('/api/social-auth','DELETE');assert.ok([200,204].includes(r.status));return {status:r.status};});
+          console.log(JSON.stringify(result,null,2));if(result.checks.some(x=>!x.pass))process.exitCode=1;
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nutrivn-task4-diagnostic-evidence
+          path: evidence/
+          if-no-files-found: error

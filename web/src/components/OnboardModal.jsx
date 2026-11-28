@@ -1,3 +1,5 @@
+'use client';
+
 import { GOALS, suggestGoal, bmiInfo } from '../lib/data.js';
 import { useApp } from '../context/AppContext.jsx';
 

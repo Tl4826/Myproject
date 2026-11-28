@@ -1,0 +1,20 @@
+# Documentation and responsive evidence (GitHub/grading only, not needed at runtime)
+docs/
+QA_REPORT_*.md
+
+# Local Playwright QA suites (not needed for Vercel build or serverless functions)
+web/tests-v2/
+web/tests-security/
+web/tests-quality/
+web/playwright*.cjs
+
+# Food50 rollback model and offline ML scripts (kept in Git, excluded from Vercel bundle)
+ml/models/
+ml/notebooks/
+ml/train_food_100.py
+ml/check_model_100.py
+ml/evaluate_*.py
+ml/*.md
+ml/requirements.txt
+ml/service/test_*.py
+ml/service/smoke_test.py

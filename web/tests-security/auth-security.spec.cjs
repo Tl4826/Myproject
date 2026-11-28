@@ -1,17 +1,44 @@
-﻿const { test, expect } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 
 const EMAIL = 'security-qa@example.com';
 const PASSWORD = 'StrongPass123!';
 
+// UI tests only: mocked auth API models valid/invalid sessions without touching Neon.
+// The real server must also pass separate integration tests against a test database.
 async function isolate(page) {
-  // Không cho test gửi yêu cầu tới backend dùng chung.
-  await page.route('**/api/**', route =>
-    route.fulfill({
-      status: 401,
-      contentType: 'application/json',
-      body: '{"error":"QA security isolated"}'
-    })
-  );
+  const accounts = new Map();
+  let session = null;
+  const reply = (route, status, body) => route.fulfill({
+    status, contentType: 'application/json', body: JSON.stringify(body)
+  });
+  await page.route('**/api/**', route => reply(route, 401, { error: 'QA isolated' }));
+  await page.route('**/api/social-auth', route => {
+    if (route.request().method() === 'GET') {
+      return session ? reply(route, 200, { user: session })
+        : reply(route, 401, { error: 'Not signed in' });
+    }
+    if (route.request().method() === 'DELETE') {
+      session = null;
+      return reply(route, 200, { ok: true });
+    }
+    return reply(route, 405, { error: 'Method not allowed' });
+  });
+  await page.route('**/api/email-auth', route => {
+    if (route.request().method() !== 'POST')
+      return reply(route, 405, { error: 'Method not allowed' });
+    const data = route.request().postDataJSON();
+    const email = String(data.email || '').toLowerCase();
+    if (data.action === 'register') {
+      if (accounts.has(email)) return reply(route, 409, { error: 'Email đã tồn tại' });
+      accounts.set(email, { password: data.password, name: data.name });
+    } else if (data.action === 'login') {
+      const user = accounts.get(email);
+      if (!user || user.password !== data.password)
+        return reply(route, 401, { error: 'Sai email hoặc mật khẩu' });
+    } else return reply(route, 400, { error: 'Invalid action' });
+    session = { id: email, email, provider: 'email', name: accounts.get(email).name };
+    return reply(route, data.action === 'register' ? 201 : 200, { user: session });
+  });
   await page.route('**/predict', route => route.abort());
 }
 
@@ -37,7 +64,9 @@ async function login(page, email = EMAIL, password = PASSWORD) {
 }
 
 async function clearSession(page) {
-  await page.evaluate(() => {
+  // Logout must revoke server session; deleting nv_user alone is not logout.
+  await page.evaluate(async () => {
+    await fetch('/api/social-auth', { method: 'DELETE', credentials: 'same-origin' });
     localStorage.removeItem('nv_user');
     sessionStorage.removeItem('nv_user');
   });

@@ -1,0 +1,79 @@
+name: Email diary sync regression
+on:
+  pull_request:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/email-diary-sync.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          LOCAL_API_PROXY: http://127.0.0.1:3001
+          NEXT_PUBLIC_GA_ID: ''
+          NEXT_PUBLIC_SENTRY_DSN: ''
+      - run: npm install --no-save --package-lock=false puppeteer@24
+      - name: Start isolated mock and production Next build
+        run: |
+          node scripts/dev-mock-api.mjs >/tmp/nv-mock.log 2>&1 &
+          npm run start -- --hostname 127.0.0.1 --port 3000 >/tmp/nv-next.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null && curl -fsS http://127.0.0.1:3001/api/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/nv-mock.log /tmp/nv-next.log
+          exit 1
+      - name: Verify two browser sessions and preserve local-only history
+        run: |
+          node --input-type=module <<'JS'
+          import puppeteer from 'puppeteer';
+          import assert from 'node:assert/strict';
+          const origin='http://127.0.0.1:3000';
+          const email='sync@example.invalid',password='synthetic-local-test-only';
+          const browser=await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+          try{
+            const a=await browser.newPage();
+            await a.goto(origin+'/login',{waitUntil:'networkidle2'});
+            const day=await a.evaluate(()=>new Date().toLocaleDateString('sv-SE'));
+            const reg=await a.evaluate(async ({email,password,day})=>{
+              localStorage.setItem('nv_meals:'+email,JSON.stringify([{id:'old-1',name:'Legacy local QA',category:'lunch',date:day,calories:null}]));
+              const r=await fetch('/api/email-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'register',email,password,name:'QA',remember:true})});
+              if(r.status!==201)return [r.status];
+              const m=await fetch('/api/diary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Cloud QA',date:day,category:'lunch',calories:null,protein:null,carbs:null,fat:null})});
+              return [r.status,m.status];
+            },{email,password,day});
+            assert.deepEqual(reg,[201,201]);
+            await a.goto(origin+'/diary',{waitUntil:'domcontentloaded'});
+            await a.waitForFunction(()=>document.querySelector('main')?.innerText.includes('Cloud QA')&&document.querySelector('main')?.innerText.includes('Legacy local QA'),{timeout:30000});
+            const count=await a.evaluate(async()=> (await (await fetch('/api/diary')).json()).meals.length);
+            assert.equal(count,1,'legacy data must not be uploaded');
+            const ctx=await browser.createBrowserContext();
+            const b=await ctx.newPage();
+            await b.goto(origin+'/login',{waitUntil:'networkidle2'});
+            const login=await b.evaluate(async ({email,password})=>(await fetch('/api/email-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',email,password,remember:true})})).status,{email,password});
+            assert.equal(login,200);
+            await b.goto(origin+'/diary',{waitUntil:'domcontentloaded'});
+            await b.waitForFunction(()=>document.querySelector('main')?.innerText.includes('Cloud QA'),{timeout:30000});
+            assert.equal(await b.evaluate(()=>document.querySelector('main').innerText.includes('Legacy local QA')),false);
+            const btn=await b.$('button[aria-label="Xoá món"]');assert.ok(btn);await btn.click();
+            await b.waitForFunction(()=>!document.querySelector('main')?.innerText.includes('Cloud QA'),{timeout:20000});
+            await a.reload({waitUntil:'domcontentloaded'});
+            await a.waitForFunction(()=>document.querySelector('main')?.innerText.includes('Legacy local QA'),{timeout:30000});
+            assert.equal(await a.evaluate(()=>document.querySelector('main').innerText.includes('Cloud QA')),false);
+            console.log('PASS: same-account cloud diary appears across isolated browser sessions; legacy remains local; cloud deletion propagates on reload.');
+          }finally{await browser.close();}
+          JS
